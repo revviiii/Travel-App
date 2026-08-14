@@ -1,0 +1,2 @@
+-- Seed data will be added after local Supabase Auth users are created.
+-- Keep development-only records here; never seed a production database.
