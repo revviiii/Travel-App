@@ -1,6 +1,6 @@
 # Travel-App
 
-# Members:
-## Leigh Dela Cruz
-## Revinea Labiano
-## Ramyl Salzar
+## Members
+* Leigh Dela Cruz
+* Revinea Labiano
+* Ramyl Salazar
