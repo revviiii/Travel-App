@@ -38,3 +38,6 @@ supabase/.branches/
 .DS_Store
 Thumbs.db
 *.swp
+
+#Kiro
+.kiro/

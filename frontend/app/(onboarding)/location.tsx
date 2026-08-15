@@ -17,6 +17,7 @@ export default function LocationSetup() {
 
   const handleAllowLocation = () => {
     // TODO: Request device location permission using Expo Location
+    router.replace('/Login');
   };
 
   const handleSetLocation = () => {
