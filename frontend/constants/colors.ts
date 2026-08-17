@@ -27,3 +27,37 @@ export const Colors = {
   /** Border color for subtle outlines */
   border: '#E5E7EB',
 } as const;
+
+/**
+ * Autumn/warm color palette used by the Preferences screen.
+ */
+export const AutumnColors = {
+  /** Warm cream/ivory background */
+  background: '#FFF9F1',
+  /** Burnt orange / terracotta red — primary button */
+  primary: '#C63F18',
+  /** Dark rust — primary pressed state */
+  primaryDark: '#A93418',
+  /** Pale peach — selected preference chip background */
+  selectedBackground: '#FFF0E7',
+  /** Coral terracotta — selected preference chip border */
+  selectedBorder: '#E66A46',
+  /** Deep terracotta — selected preference text / icon tint */
+  selectedText: '#B64224',
+  /** Warm white — normal preference chip background */
+  chipBackground: '#FFFCF7',
+  /** Warm beige — normal preference chip border */
+  chipBorder: '#E8D9C8',
+  /** Dark espresso brown — main heading */
+  heading: '#2B160D',
+  /** Warm taupe — body/description text */
+  body: '#62574B',
+  /** Charcoal brown — preference label text */
+  chipText: '#302A24',
+  /** Muted olive green — secondary accent */
+  secondaryAccent: '#5F6237',
+  /** Pumpkin orange — autumn accent */
+  autumnAccent: '#D87527',
+  /** Warm golden amber — golden accent */
+  goldenAccent: '#D89B42',
+} as const;

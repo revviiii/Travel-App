@@ -93,10 +93,8 @@ export default function SignupScreen() {
 
   const handleSignup = () => {
     if (validateForm()) {
-      Alert.alert(
-        'Account ready',
-        'Your sign-up details are valid.',
-      );
+      // TODO: Replace with real authentication. Navigate to preferences temporarily.
+      router.replace('/preferences');
     }
   };
 

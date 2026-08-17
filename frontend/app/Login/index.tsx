@@ -46,10 +46,8 @@ export default function LoginScreen() {
       email.trim() &&
       password.length >= MINIMUM_PASSWORD_LENGTH
     ) {
-      Alert.alert(
-        'Welcome back',
-        'Your login details are valid.',
-      );
+      // TODO: Replace with real authentication. Navigate to preferences temporarily.
+      router.replace('/preferences');
     } else {
       Alert.alert(
         'Invalid login',
