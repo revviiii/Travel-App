@@ -55,12 +55,13 @@ export default function PreferencesScreen() {
   };
 
   const handleSkip = () => {
-    // TODO: Navigate to the next screen (main app / tabs) when available
+    // TODO: Persist user preferences when backend integration is available
+    router.replace('/home');
   };
 
   const handleContinue = () => {
     // TODO: Persist selected preferences when backend integration is implemented
-    // TODO: Navigate to the next screen (main app / tabs) when available
+    router.replace('/home');
   };
 
   return (
