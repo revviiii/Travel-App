@@ -1,0 +1,129 @@
+from uuid import UUID
+
+from fastapi.testclient import TestClient
+
+from app.api.dependencies import (
+    get_current_user,
+    get_google_places_client,
+    get_google_routes_client,
+)
+from app.main import app
+from app.schemas.google_maps import NearbySearchQuery, RouteQuery
+from app.schemas.profile import CurrentUser
+
+USER_ID = UUID("6f7ce5df-ef53-46d4-a6f9-43ebf9b57b9a")
+
+
+class FakePlacesClient:
+    query: NearbySearchQuery | None = None
+
+    async def search_nearby(self, query: NearbySearchQuery) -> dict:
+        self.query = query
+        return {
+            "places": [
+                {
+                    "id": "ChIJ-test-place",
+                    "displayName": {"text": "National Museum"},
+                    "formattedAddress": "Manila, Metro Manila",
+                    "location": {"latitude": 14.5869, "longitude": 120.9816},
+                    "primaryType": "museum",
+                }
+            ]
+        }
+
+
+class FakeRoutesClient:
+    query: RouteQuery | None = None
+
+    async def compute_route(self, query: RouteQuery) -> dict:
+        self.query = query
+        return {
+            "routes": [
+                {
+                    "distanceMeters": 1500,
+                    "duration": "600.2s",
+                    "polyline": {"encodedPolyline": "encoded-route"},
+                    "legs": [{"distanceMeters": 1500, "duration": "600.2s"}],
+                }
+            ]
+        }
+
+
+def override_authenticated_user() -> CurrentUser:
+    return CurrentUser(id=USER_ID, email="ramyl@example.com")
+
+
+def test_maps_endpoint_requires_authentication() -> None:
+    app.dependency_overrides.clear()
+
+    with TestClient(app) as client:
+        response = client.post(
+            "/api/v1/maps/places/nearby",
+            json={"center": {"latitude": 14.5995, "longitude": 120.9842}},
+        )
+
+    assert response.status_code == 401
+
+
+def test_nearby_places_maps_preferences_and_normalizes_markers() -> None:
+    fake_places = FakePlacesClient()
+    app.dependency_overrides[get_current_user] = override_authenticated_user
+    app.dependency_overrides[get_google_places_client] = lambda: fake_places
+
+    with TestClient(app) as client:
+        response = client.post(
+            "/api/v1/maps/places/nearby",
+            json={
+                "center": {"latitude": 14.5995, "longitude": 120.9842},
+                "radius_meters": 3000,
+                "preference_keys": ["culture", "food"],
+                "max_result_count": 5,
+            },
+        )
+
+    app.dependency_overrides.clear()
+    assert response.status_code == 200
+    assert response.json()["places"][0] == {
+        "place_id": "ChIJ-test-place",
+        "name": "National Museum",
+        "address": "Manila, Metro Manila",
+        "location": {"latitude": 14.5869, "longitude": 120.9816},
+        "primary_type": "museum",
+        "rating": None,
+    }
+    assert fake_places.query is not None
+    assert fake_places.query.included_types == [
+        "museum",
+        "art_gallery",
+        "historical_place",
+        "restaurant",
+        "cafe",
+    ]
+
+
+def test_compute_route_normalizes_polyline_distance_and_duration() -> None:
+    fake_routes = FakeRoutesClient()
+    app.dependency_overrides[get_current_user] = override_authenticated_user
+    app.dependency_overrides[get_google_routes_client] = lambda: fake_routes
+
+    with TestClient(app) as client:
+        response = client.post(
+            "/api/v1/maps/routes/compute",
+            json={
+                "origin": {"latitude": 14.5995, "longitude": 120.9842},
+                "destination": {"latitude": 14.5869, "longitude": 120.9816},
+                "travel_mode": "WALK",
+            },
+        )
+
+    app.dependency_overrides.clear()
+    assert response.status_code == 200
+    assert response.json() == {
+        "distance_meters": 1500,
+        "duration_seconds": 601,
+        "encoded_polyline": "encoded-route",
+        "legs": [{"distance_meters": 1500, "duration_seconds": 601}],
+        "provider": "google",
+    }
+    assert fake_routes.query is not None
+    assert fake_routes.query.travel_mode == "WALK"

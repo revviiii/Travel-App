@@ -14,8 +14,6 @@ DEFAULT_PLACE_FIELDS: tuple[str, ...] = (
     "places.formattedAddress",
     "places.location",
     "places.primaryType",
-    "places.rating",
-    "places.priceLevel",
 )
 
 
@@ -36,6 +34,19 @@ class GooglePlacesClient:
         self._field_mask = tuple(field_mask)
 
     async def search_nearby(self, query: NearbySearchQuery) -> dict:
+        request_body = {
+            "maxResultCount": query.max_result_count,
+            "rankPreference": query.rank_preference,
+            "locationRestriction": {
+                "circle": {
+                    "center": query.center.model_dump(),
+                    "radius": query.radius_meters,
+                }
+            },
+        }
+        if query.included_types:
+            request_body["includedTypes"] = query.included_types
+
         response = await self._http_client.post(
             PLACES_NEARBY_URL,
             headers={
@@ -43,17 +54,7 @@ class GooglePlacesClient:
                 "X-Goog-Api-Key": self._api_key,
                 "X-Goog-FieldMask": ",".join(self._field_mask),
             },
-            json={
-                "includedTypes": query.included_types,
-                "maxResultCount": query.max_result_count,
-                "rankPreference": query.rank_preference,
-                "locationRestriction": {
-                    "circle": {
-                        "center": query.center.model_dump(),
-                        "radius": query.radius_meters,
-                    }
-                },
-            },
+            json=request_body,
         )
         response.raise_for_status()
         return response.json()
