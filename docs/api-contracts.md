@@ -58,3 +58,17 @@ supports the Preferences screen's Skip action.
 The current frontend keys are `outdoors`, `city`, `culture`, `beaches`,
 `nature`, `roadtrips`, `food`, `gym`, `bar`, `shopping`, `skiing`, `retreats`,
 and `spa`.
+
+## Maps
+
+### `POST /api/v1/maps/places/nearby`
+
+Returns normalized Google place markers for a center point, radius, and the
+current frontend preference keys. See the
+[Google Maps integration guide](google-maps-integration.md) for the request,
+response, cost controls, and mobile handoff.
+
+### `POST /api/v1/maps/routes/compute`
+
+Returns normalized distance, duration, route legs, and an encoded polyline for
+an origin, destination, and travel mode.

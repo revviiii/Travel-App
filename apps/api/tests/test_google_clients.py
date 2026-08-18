@@ -1,4 +1,5 @@
 import asyncio
+import json
 
 import httpx
 
@@ -13,6 +14,12 @@ def test_places_client_sends_required_headers_and_body() -> None:
             assert str(request.url) == PLACES_NEARBY_URL
             assert request.headers["X-Goog-Api-Key"] == "test-key"
             assert request.headers["X-Goog-FieldMask"]
+            assert "places.rating" not in request.headers["X-Goog-FieldMask"]
+            assert "places.priceLevel" not in request.headers["X-Goog-FieldMask"]
+            assert json.loads(request.content)["includedTypes"] == [
+                "tourist_attraction",
+                "museum",
+            ]
             return httpx.Response(200, json={"places": []})
 
         async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as http_client:

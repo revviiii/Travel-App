@@ -5,6 +5,8 @@ import httpx
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
+from app.clients.google_places import GooglePlacesClient
+from app.clients.google_routes import GoogleRoutesClient
 from app.clients.supabase import (
     SupabaseApiError,
     SupabaseAuthenticationError,
@@ -19,6 +21,38 @@ bearer_scheme = HTTPBearer(auto_error=False)
 async def get_http_client() -> AsyncIterator[httpx.AsyncClient]:
     async with httpx.AsyncClient(timeout=10.0) as client:
         yield client
+
+
+def get_google_places_client(
+    settings: Annotated[Settings, Depends(get_settings)],
+    http_client: Annotated[httpx.AsyncClient, Depends(get_http_client)],
+) -> GooglePlacesClient:
+    if settings.google_maps_api_key is None:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Google Maps is not configured",
+        )
+
+    return GooglePlacesClient(
+        api_key=settings.google_maps_api_key.get_secret_value(),
+        http_client=http_client,
+    )
+
+
+def get_google_routes_client(
+    settings: Annotated[Settings, Depends(get_settings)],
+    http_client: Annotated[httpx.AsyncClient, Depends(get_http_client)],
+) -> GoogleRoutesClient:
+    if settings.google_maps_api_key is None:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Google Maps is not configured",
+        )
+
+    return GoogleRoutesClient(
+        api_key=settings.google_maps_api_key.get_secret_value(),
+        http_client=http_client,
+    )
 
 
 def get_access_token(
