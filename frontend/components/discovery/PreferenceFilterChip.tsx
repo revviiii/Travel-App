@@ -1,25 +1,26 @@
 import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { AutumnColors } from '@/constants/colors';
 
-interface PlannerTabProps {
+interface PreferenceFilterChipProps {
   label: string;
   active: boolean;
   onPress: () => void;
 }
 
 /**
- * A selectable planner tab button used in the Home screen.
- * Displays an icon placeholder and label. Active state uses olive green.
+ * A filter chip for the Discovery preferences section.
+ * Active state uses olive green background matching the planner tab style.
+ * Includes a placeholder for the future SVG icon.
  */
-export function PlannerTab({ label, active, onPress }: PlannerTabProps) {
+export function PreferenceFilterChip({ label, active, onPress }: PreferenceFilterChipProps) {
   return (
     <TouchableOpacity
       activeOpacity={0.7}
       onPress={onPress}
-      accessibilityRole="tab"
+      accessibilityRole="button"
       accessibilityState={{ selected: active }}
-      accessibilityLabel={label}
-      style={[styles.tab, active ? styles.tabActive : styles.tabInactive]}
+      accessibilityLabel={`${label} filter`}
+      style={[styles.chip, active ? styles.chipActive : styles.chipInactive]}
     >
       {/* TODO: Replace with final Figma SVG icon */}
       <View style={[styles.iconPlaceholder, active && styles.iconActive]} />
@@ -29,37 +30,34 @@ export function PlannerTab({ label, active, onPress }: PlannerTabProps) {
 }
 
 const styles = StyleSheet.create({
-  tab: {
+  chip: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    borderRadius: 28,
-    gap: 7,
-    minHeight: 40,
-  },
-  tabInactive: {
-    backgroundColor: AutumnColors.chipBackground,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 20,
+    gap: 6,
     borderWidth: 1,
+  },
+  chipInactive: {
+    backgroundColor: AutumnColors.chipBackground,
     borderColor: AutumnColors.chipBorder,
   },
-  tabActive: {
+  chipActive: {
     backgroundColor: AutumnColors.secondaryAccent,
-    borderWidth: 1,
     borderColor: AutumnColors.secondaryAccent,
   },
   iconPlaceholder: {
-    width: 18,
-    height: 18,
-    borderRadius: 4,
+    width: 14,
+    height: 14,
+    borderRadius: 3,
     backgroundColor: AutumnColors.chipBorder,
   },
   iconActive: {
     backgroundColor: 'rgba(255,255,255,0.5)',
   },
   label: {
-    fontSize: 13,
+    fontSize: 12,
     fontWeight: '500',
     color: AutumnColors.chipText,
   },

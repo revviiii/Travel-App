@@ -1,4 +1,3 @@
-import { Image } from 'expo-image';
 import { useState, useCallback } from 'react';
 import {
   FlatList,
@@ -9,10 +8,14 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
+import { Image } from 'expo-image';
+import { useRouter, RelativePathString } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { AutumnColors } from '@/constants/colors';
 import { PlannerTab } from '@/components/home/PlannerTab';
 import { EmptyState } from '@/components/home/EmptyState';
+import { GroupCard } from '@/components/home/GroupCard';
+import { CreateGroupModal } from '@/components/home/CreateGroupModal';
 import { TravelGoalCard } from '@/components/home/TravelGoalCard';
 import { TravelGoalInput } from '@/components/home/TravelGoalInput';
 
@@ -20,23 +23,75 @@ const settingsIcon = require('@/assets/images/settings_ic.svg');
 
 type PlannerSection = 'group' | 'itinerary' | 'goals';
 
+interface GroupData {
+  id: string;
+  name: string;
+  /**
+   * Temporary placeholder member count for UI testing.
+   * TODO: Replace with actual member data from backend.
+   */
+  memberCount: number;
+}
+
 export default function HomeScreen() {
+  const router = useRouter();
   const insets = useSafeAreaInsets();
+
+  // Planner tab state
   const [activeTab, setActiveTab] = useState<PlannerSection>('group');
+
+  // Destination search
+  const [destination, setDestination] = useState('');
+
+  // Group state
+  const [groups, setGroups] = useState<GroupData[]>([]);
+  const [showCreateGroup, setShowCreateGroup] = useState(false);
+  const [groupToDelete, setGroupToDelete] = useState<string | null>(null);
+
+  // Goals state
   const [goals, setGoals] = useState<string[]>([]);
   const [goalToDelete, setGoalToDelete] = useState<number | null>(null);
 
   // TODO: Replace with authenticated user's profile name
   const userName = 'Traveler';
 
-  const handleProfilePress = useCallback(() => {
-    // TODO: Navigate to the user's profile screen
+  // --- Search ---
+  const handleSearchSubmit = useCallback(() => {
+    const trimmed = destination.trim();
+    if (trimmed.length > 0) {
+      // TODO: Replace local destination behavior with Places/Maps API results
+      const path = `/discovery?destination=${encodeURIComponent(trimmed)}` as RelativePathString;
+      router.push(path);
+    }
+  }, [destination, router]);
+
+  // --- Groups ---
+  const handleCreateGroup = useCallback((name: string) => {
+    // TODO: Persist groups through backend/API
+    setGroups((prev) => [
+      ...prev,
+      { id: Date.now().toString(), name, memberCount: 0 },
+    ]);
+    setShowCreateGroup(false);
   }, []);
 
-  const handleSettingsPress = useCallback(() => {
-    // TODO: Navigate to the settings screen
+  const handleLongPressGroup = useCallback((id: string) => {
+    setGroupToDelete(id);
   }, []);
 
+  const handleConfirmDeleteGroup = useCallback(() => {
+    if (groupToDelete !== null) {
+      // TODO: Delete group through backend/API when integration is implemented
+      setGroups((prev) => prev.filter((g) => g.id !== groupToDelete));
+      setGroupToDelete(null);
+    }
+  }, [groupToDelete]);
+
+  const handleCancelDeleteGroup = useCallback(() => {
+    setGroupToDelete(null);
+  }, []);
+
+  // --- Goals ---
   const handleAddGoal = useCallback((goal: string) => {
     // TODO: Persist travel goals when backend integration is implemented
     setGoals((prev) => [...prev, goal]);
@@ -58,6 +113,21 @@ export default function HomeScreen() {
     setGoalToDelete(null);
   }, []);
 
+  // --- Renderers ---
+  const renderGroupItem = useCallback(
+    ({ item }: { item: GroupData }) => (
+      <GroupCard
+        name={item.name}
+        memberCount={item.memberCount}
+        onPress={() => {
+          // TODO: Navigate to group detail screen
+        }}
+        onLongPress={() => handleLongPressGroup(item.id)}
+      />
+    ),
+    [handleLongPressGroup],
+  );
+
   const renderGoalItem = useCallback(
     ({ item, index }: { item: string; index: number }) => (
       <TravelGoalCard text={item} onLongPress={() => handleLongPressGoal(index)} />
@@ -68,15 +138,48 @@ export default function HomeScreen() {
   const renderContent = () => {
     switch (activeTab) {
       case 'group':
+        if (groups.length === 0) {
+          return (
+            <View style={styles.groupSection}>
+              <View style={styles.groupFlatList}>
+                <EmptyState
+                  title="No group yet!"
+                  description="Create a group and start planning together."
+                />
+              </View>
+              <TouchableOpacity
+                activeOpacity={0.85}
+                onPress={() => setShowCreateGroup(true)}
+                accessibilityRole="button"
+                accessibilityLabel="Add New Group"
+                style={styles.addGroupButton}
+              >
+                <Text style={styles.addGroupText}>Add New Group</Text>
+              </TouchableOpacity>
+            </View>
+          );
+        }
         return (
-          <EmptyState
-            title="No group yet!"
-            description="Create a group and start planning together."
-            ctaLabel="Add New Group"
-            onCtaPress={() => {
-              // TODO: Connect Add New Group to group creation flow
-            }}
-          />
+          <View style={styles.groupSection}>
+            <FlatList
+              data={groups}
+              keyExtractor={(item) => item.id}
+              renderItem={renderGroupItem}
+              contentContainerStyle={styles.groupList}
+              showsVerticalScrollIndicator={false}
+              style={styles.groupFlatList}
+              ItemSeparatorComponent={() => <View style={styles.groupSeparator} />}
+            />
+            <TouchableOpacity
+              activeOpacity={0.85}
+              onPress={() => setShowCreateGroup(true)}
+              accessibilityRole="button"
+              accessibilityLabel="Add New Group"
+              style={styles.addGroupButton}
+            >
+              <Text style={styles.addGroupText}>Add New Group</Text>
+            </TouchableOpacity>
+          </View>
         );
 
       case 'itinerary':
@@ -126,11 +229,11 @@ export default function HomeScreen() {
       {/* Header: profile, greeting, and settings */}
       <View style={styles.header}>
         <View style={styles.headerIdentity}>
+          {/* TODO: Replace with user profile/avatar */}
           <TouchableOpacity
             accessibilityLabel="Open profile"
             accessibilityRole="button"
             hitSlop={10}
-            onPress={handleProfilePress}
             style={styles.profileButton}
           >
             <View style={styles.avatarPlaceholder} />
@@ -138,14 +241,14 @@ export default function HomeScreen() {
           <Text style={styles.greeting}>Hello, {userName}</Text>
         </View>
 
+        {/* Settings icon */}
         <TouchableOpacity
           accessibilityLabel="Open settings"
           accessibilityRole="button"
           hitSlop={10}
-          onPress={handleSettingsPress}
           style={styles.settingsButton}
         >
-          <Image contentFit="contain" source={settingsIcon} style={styles.settingsIcon} />
+          <Image source={settingsIcon} style={styles.settingsIcon} contentFit="contain" />
         </TouchableOpacity>
       </View>
 
@@ -155,7 +258,7 @@ export default function HomeScreen() {
       </Text>
 
       {/* Map placeholder */}
-      {/* TODO: Replace with real map component when maps integration is implemented */}
+      {/* TODO: Replace with real map component when maps/API integration is implemented */}
       <View style={styles.mapPlaceholder}>
         <Text style={styles.mapPlaceholderText}>MAP PLACEHOLDER</Text>
       </View>
@@ -164,17 +267,21 @@ export default function HomeScreen() {
       <View style={styles.searchContainer}>
         {/* TODO: Replace with final Figma location/search SVG */}
         <View style={styles.searchIconPlaceholder} />
-        {/* TODO: Connect destination search to places/maps service */}
+        {/* TODO: Connect destination search to Places/Maps API */}
         <TextInput
           style={styles.searchInput}
+          value={destination}
+          onChangeText={setDestination}
+          onSubmitEditing={handleSearchSubmit}
           placeholder="Where do you want to go"
           placeholderTextColor={AutumnColors.body}
-          editable={false}
+          returnKeyType="search"
           accessibilityLabel="Destination search"
+          accessibilityHint="Type a destination and press search"
         />
       </View>
 
-      {/* Planner tabs */}
+      {/* Planner tabs — centered */}
       <View style={styles.tabRow}>
         <PlannerTab
           label="Group"
@@ -197,6 +304,13 @@ export default function HomeScreen() {
       <View style={styles.contentArea}>
         {renderContent()}
       </View>
+
+      {/* Create Group Modal */}
+      <CreateGroupModal
+        visible={showCreateGroup}
+        onCancel={() => setShowCreateGroup(false)}
+        onCreate={handleCreateGroup}
+      />
 
       {/* Clear Goal Confirmation Modal */}
       <Modal
@@ -232,6 +346,41 @@ export default function HomeScreen() {
           </View>
         </View>
       </Modal>
+
+      {/* Delete Group Confirmation Modal */}
+      <Modal
+        visible={groupToDelete !== null}
+        transparent
+        animationType="fade"
+        onRequestClose={handleCancelDeleteGroup}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalCard}>
+            <Text style={styles.modalTitle}>Delete this group?</Text>
+            <Text style={styles.modalDescription}>
+              This will remove the selected group.
+            </Text>
+            <View style={styles.modalActions}>
+              <TouchableOpacity
+                onPress={handleCancelDeleteGroup}
+                accessibilityRole="button"
+                accessibilityLabel="Cancel"
+                style={styles.modalCancelButton}
+              >
+                <Text style={styles.modalCancelText}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                onPress={handleConfirmDeleteGroup}
+                accessibilityRole="button"
+                accessibilityLabel="Delete Group"
+                style={styles.modalClearButton}
+              >
+                <Text style={styles.modalClearText}>Delete Group</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -253,51 +402,51 @@ const styles = StyleSheet.create({
   headerIdentity: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 7,
+    gap: 8,
   },
   profileButton: {
-    borderRadius: 9,
+    borderRadius: 16,
   },
   avatarPlaceholder: {
-    width: 18,
-    height: 18,
-    borderRadius: 9,
+    width: 32,
+    height: 32,
+    borderRadius: 16,
     backgroundColor: AutumnColors.chipBorder,
   },
   greeting: {
-    fontSize: 11,
+    fontSize: 14,
     fontWeight: '500',
     color: AutumnColors.chipText,
   },
   settingsButton: {
-    width: 20,
-    height: 20,
+    width: 28,
+    height: 28,
     alignItems: 'center',
     justifyContent: 'center',
   },
   settingsIcon: {
-    width: 14,
-    height: 14,
+    width: 18,
+    height: 18,
   },
 
   /* Heading */
   heading: {
-    fontSize: 24,
+    fontSize: 22,
     fontWeight: '700',
     color: AutumnColors.heading,
-    lineHeight: 32,
-    marginBottom: 16,
+    lineHeight: 30,
+    marginBottom: 14,
   },
 
   /* Map */
   mapPlaceholder: {
     width: '100%',
-    aspectRatio: 16 / 9,
+    aspectRatio: 2,
     borderRadius: 12,
     backgroundColor: '#EDE9E0',
     justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: 14,
+    marginBottom: 12,
   },
   mapPlaceholderText: {
     fontSize: 13,
@@ -316,7 +465,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     paddingVertical: 10,
     gap: 8,
-    marginBottom: 14,
+    marginBottom: 12,
   },
   searchIconPlaceholder: {
     width: 16,
@@ -331,16 +480,47 @@ const styles = StyleSheet.create({
     padding: 0,
   },
 
-  /* Tabs */
+  /* Tabs — centered row */
   tabRow: {
     flexDirection: 'row',
-    gap: 8,
-    marginBottom: 12,
+    justifyContent: 'center',
+    gap: 10,
+    marginBottom: 14,
   },
 
   /* Content */
   contentArea: {
     flex: 1,
+  },
+
+  /* Group section */
+  groupSection: {
+    flex: 1,
+  },
+  groupFlatList: {
+    flex: 1,
+  },
+  groupList: {
+    paddingTop: 4,
+    paddingBottom: 4,
+  },
+  groupSeparator: {
+    height: 10,
+  },
+  addGroupButton: {
+    width: '100%',
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: AutumnColors.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 16,
+    marginBottom: 12,
+  },
+  addGroupText: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#FFFFFF',
   },
 
   /* Goals */
@@ -372,7 +552,7 @@ const styles = StyleSheet.create({
     height: 10,
   },
 
-  /* Modal */
+  /* Modal — Clear Goal */
   modalOverlay: {
     flex: 1,
     backgroundColor: 'rgba(0,0,0,0.4)',
