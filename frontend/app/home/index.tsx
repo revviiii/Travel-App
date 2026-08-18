@@ -1,3 +1,4 @@
+import { Image } from 'expo-image';
 import { useState, useCallback } from 'react';
 import {
   FlatList,
@@ -15,6 +16,8 @@ import { EmptyState } from '@/components/home/EmptyState';
 import { TravelGoalCard } from '@/components/home/TravelGoalCard';
 import { TravelGoalInput } from '@/components/home/TravelGoalInput';
 
+const settingsIcon = require('@/assets/images/settings_ic.svg');
+
 type PlannerSection = 'group' | 'itinerary' | 'goals';
 
 export default function HomeScreen() {
@@ -25,6 +28,14 @@ export default function HomeScreen() {
 
   // TODO: Replace with authenticated user's profile name
   const userName = 'Traveler';
+
+  const handleProfilePress = useCallback(() => {
+    // TODO: Navigate to the user's profile screen
+  }, []);
+
+  const handleSettingsPress = useCallback(() => {
+    // TODO: Navigate to the settings screen
+  }, []);
 
   const handleAddGoal = useCallback((goal: string) => {
     // TODO: Persist travel goals when backend integration is implemented
@@ -112,11 +123,30 @@ export default function HomeScreen() {
 
   return (
     <View style={[styles.screen, { paddingTop: insets.top + 16 }]}>
-      {/* Header: greeting + avatar */}
+      {/* Header: profile, greeting, and settings */}
       <View style={styles.header}>
-        {/* TODO: Replace with user profile/avatar */}
-        <View style={styles.avatarPlaceholder} />
-        <Text style={styles.greeting}>Hello, {userName}</Text>
+        <View style={styles.headerIdentity}>
+          <TouchableOpacity
+            accessibilityLabel="Open profile"
+            accessibilityRole="button"
+            hitSlop={10}
+            onPress={handleProfilePress}
+            style={styles.profileButton}
+          >
+            <View style={styles.avatarPlaceholder} />
+          </TouchableOpacity>
+          <Text style={styles.greeting}>Hello, {userName}</Text>
+        </View>
+
+        <TouchableOpacity
+          accessibilityLabel="Open settings"
+          accessibilityRole="button"
+          hitSlop={10}
+          onPress={handleSettingsPress}
+          style={styles.settingsButton}
+        >
+          <Image contentFit="contain" source={settingsIcon} style={styles.settingsIcon} />
+        </TouchableOpacity>
       </View>
 
       {/* Main heading */}
@@ -216,20 +246,38 @@ const styles = StyleSheet.create({
   /* Header */
   header: {
     flexDirection: 'row',
+    justifyContent: 'space-between',
     alignItems: 'center',
-    gap: 10,
     marginBottom: 16,
   },
+  headerIdentity: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 7,
+  },
+  profileButton: {
+    borderRadius: 9,
+  },
   avatarPlaceholder: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
+    width: 18,
+    height: 18,
+    borderRadius: 9,
     backgroundColor: AutumnColors.chipBorder,
   },
   greeting: {
-    fontSize: 15,
+    fontSize: 11,
     fontWeight: '500',
     color: AutumnColors.chipText,
+  },
+  settingsButton: {
+    width: 20,
+    height: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  settingsIcon: {
+    width: 14,
+    height: 14,
   },
 
   /* Heading */
