@@ -45,6 +45,23 @@ User B can read it after accepting a valid invitation.
 
 ## 4. Build authenticated FastAPI endpoints
 
+Current progress: Supabase access-token validation, `GET /api/v1/me`,
+`PATCH /api/v1/me`, `GET /api/v1/me/preferences`, and
+`PUT /api/v1/me/preferences` are implemented with mocked tests.
+
+Priority after the August 19 frontend update:
+
+1. Apply the preferences RPC migration and smoke-test these four endpoints
+   against local Supabase.
+2. Give frontend developers the API contract and have them replace mock
+   login, signup, and preference actions with Supabase Auth plus these APIs.
+3. Implement trip/group CRUD because the Home screen currently stores groups
+   only in component state.
+4. Add travel-goal storage because the Home screen currently stores goals only
+   in component state.
+5. Expose Google Places recommendations because Discovery still uses mock
+   cards and a map placeholder.
+
 Implement in this order:
 
 ```text
