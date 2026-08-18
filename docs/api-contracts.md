@@ -1,0 +1,60 @@
+# Backend API contracts
+
+All authenticated endpoints require the Supabase user access token issued by
+the mobile app's sign-in flow:
+
+```http
+Authorization: Bearer <supabase-user-access-token>
+```
+
+The publishable key is not a user token. Never send a Supabase secret key or
+Google Maps server key from the mobile application.
+
+## Profile
+
+### `GET /api/v1/me`
+
+Returns the authenticated user's profile created by the Auth signup trigger.
+
+### `PATCH /api/v1/me`
+
+Accepts any subset of:
+
+```json
+{
+  "full_name": "Ramyl Salazar",
+  "country": "Philippines",
+  "preferred_language": "en",
+  "onboarding_completed": true
+}
+```
+
+The API derives the profile ID from the verified access token. Clients cannot
+select another profile ID in the request body.
+
+## Preferences
+
+### `GET /api/v1/me/preferences`
+
+Example response:
+
+```json
+{
+  "preference_keys": ["food", "nature", "outdoors"]
+}
+```
+
+### `PUT /api/v1/me/preferences`
+
+Replaces the complete preference selection atomically. Sending an empty list
+supports the Preferences screen's Skip action.
+
+```json
+{
+  "preference_keys": ["food", "nature", "outdoors"]
+}
+```
+
+The current frontend keys are `outdoors`, `city`, `culture`, `beaches`,
+`nature`, `roadtrips`, `food`, `gym`, `bar`, `shopping`, `skiing`, `retreats`,
+and `spa`.
