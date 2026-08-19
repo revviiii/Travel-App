@@ -27,6 +27,14 @@ class SupabaseResourceNotFoundError(SupabaseApiError):
     """Raised when a resource is missing or hidden by row-level security."""
 
 
+class SupabaseInvitationAuthorizationError(SupabaseApiError):
+    """Raised when a user cannot create an invitation for a trip."""
+
+
+class SupabaseInvalidInvitationError(SupabaseApiError):
+    """Raised when an invitation cannot be accepted."""
+
+
 class SupabaseClient:
     def __init__(
         self,
@@ -170,6 +178,40 @@ class SupabaseClient:
         if not rows:
             raise SupabaseResourceNotFoundError("Trip was not found")
 
+    async def create_trip_invitation(
+        self,
+        trip_id: UUID,
+        values: Mapping[str, object],
+    ) -> Mapping[str, object]:
+        rows = await self._request_rows(
+            "POST",
+            "/rest/v1/rpc/create_trip_invitation",
+            json={
+                "target_trip_id": str(trip_id),
+                "new_expires_at": values["expires_at"],
+                "new_maximum_uses": values["maximum_uses"],
+            },
+            allow_object=True,
+            error_type=SupabaseInvitationAuthorizationError,
+        )
+        if not rows:
+            raise SupabaseApiError("Invitation was not created")
+        return rows[0]
+
+    async def accept_trip_invitation(self, invite_token: str) -> Mapping[str, object]:
+        rows = await self._request_rows(
+            "POST",
+            "/rest/v1/rpc/accept_trip_invitation",
+            json={"target_token": invite_token},
+            allow_object=True,
+            error_type=SupabaseInvalidInvitationError,
+        )
+        if not rows:
+            raise SupabaseInvalidInvitationError(
+                "Invitation is invalid, expired, or no longer active"
+            )
+        return rows[0]
+
     async def _add_trip_membership(
         self,
         trips: list[Mapping[str, object]],
@@ -213,6 +255,7 @@ class SupabaseClient:
         json: Mapping[str, object] | None = None,
         headers: Mapping[str, str] | None = None,
         allow_object: bool = False,
+        error_type: type[SupabaseApiError] | None = None,
     ) -> list[Mapping[str, object]]:
         request_headers = self._headers | dict(headers or {})
 
@@ -227,6 +270,15 @@ class SupabaseClient:
         except httpx.RequestError as exc:
             raise SupabaseApiError("Supabase Data API is unavailable") from exc
 
+        if response.is_error and error_type is not None:
+            try:
+                error_payload = response.json()
+            except ValueError:
+                error_payload = {}
+            message = error_payload.get("message")
+            raise error_type(
+                str(message) if message else "Supabase Data API rejected the request"
+            )
         if response.is_error:
             raise SupabaseApiError("Supabase Data API rejected the request")
 

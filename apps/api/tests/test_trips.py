@@ -4,7 +4,10 @@ from uuid import UUID
 from fastapi.testclient import TestClient
 
 from app.api.dependencies import get_current_user, get_supabase_client
-from app.clients.supabase import SupabaseResourceNotFoundError
+from app.clients.supabase import (
+    SupabaseInvalidInvitationError,
+    SupabaseResourceNotFoundError,
+)
 from app.main import app
 from app.schemas.profile import CurrentUser
 
@@ -26,12 +29,25 @@ TRIP = {
     "created_at": "2026-08-19T00:00:00Z",
     "updated_at": "2026-08-19T00:00:00Z",
 }
+INVITE_TOKEN = "a" * 64
+INVITATION = {
+    "id": "47471c52-dd71-466f-8bdd-0255f460c0ef",
+    "trip_id": str(TRIP_ID),
+    "created_by": str(USER_ID),
+    "invite_token": INVITE_TOKEN,
+    "expires_at": "2026-08-26T00:00:00Z",
+    "maximum_uses": 1,
+    "use_count": 0,
+    "is_active": True,
+    "created_at": "2026-08-19T00:00:00Z",
+}
 
 
 class FakeSupabaseClient:
     def __init__(self) -> None:
         self.trips: list[Mapping[str, object]] = [TRIP.copy()]
         self.create_values: Mapping[str, object] | None = None
+        self.invitation_values: Mapping[str, object] | None = None
 
     async def create_trip(
         self,
@@ -70,6 +86,25 @@ class FakeSupabaseClient:
         if trip_id != TRIP_ID:
             raise SupabaseResourceNotFoundError("Trip was not found")
         self.trips = []
+
+    async def create_trip_invitation(
+        self,
+        trip_id: UUID,
+        values: Mapping[str, object],
+    ) -> Mapping[str, object]:
+        assert trip_id == TRIP_ID
+        self.invitation_values = values
+        return INVITATION
+
+    async def accept_trip_invitation(self, invite_token: str) -> Mapping[str, object]:
+        if invite_token != INVITE_TOKEN:
+            raise SupabaseInvalidInvitationError("Invalid invitation")
+        return {
+            "trip_id": str(TRIP_ID),
+            "user_id": str(USER_ID),
+            "role": "member",
+            "joined_at": "2026-08-19T00:00:00Z",
+        }
 
 
 def authenticated_client(fake_supabase: FakeSupabaseClient) -> TestClient:
@@ -143,3 +178,37 @@ def test_unknown_trip_returns_not_found() -> None:
     app.dependency_overrides.clear()
     assert response.status_code == 404
     assert response.json() == {"detail": "Trip was not found"}
+
+
+def test_create_and_accept_trip_invitation() -> None:
+    fake_supabase = FakeSupabaseClient()
+
+    with authenticated_client(fake_supabase) as client:
+        create_response = client.post(
+            f"/api/v1/trips/{TRIP_ID}/invitations",
+            json={"expires_at": "2026-08-26T00:00:00Z", "maximum_uses": 1},
+        )
+        accept_response = client.post(f"/api/v1/invitations/{INVITE_TOKEN}/accept")
+
+    app.dependency_overrides.clear()
+    assert create_response.status_code == 201
+    assert create_response.json()["invite_token"] == INVITE_TOKEN
+    assert fake_supabase.invitation_values == {
+        "expires_at": "2026-08-26T00:00:00Z",
+        "maximum_uses": 1,
+    }
+    assert accept_response.status_code == 200
+    assert accept_response.json()["id"] == str(TRIP_ID)
+
+
+def test_invalid_invitation_is_rejected_safely() -> None:
+    fake_supabase = FakeSupabaseClient()
+
+    with authenticated_client(fake_supabase) as client:
+        response = client.post(f"/api/v1/invitations/{'b' * 64}/accept")
+
+    app.dependency_overrides.clear()
+    assert response.status_code == 400
+    assert response.json() == {
+        "detail": "Invitation is invalid, expired, or no longer active"
+    }

@@ -1,4 +1,4 @@
-from datetime import date, datetime
+from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal
 from typing import Literal
 from uuid import UUID
@@ -44,3 +44,24 @@ class TripMemberResponse(BaseModel):
     user_id: UUID
     role: TripRole
     joined_at: datetime
+
+
+def default_invitation_expiry() -> datetime:
+    return datetime.now(UTC) + timedelta(days=7)
+
+
+class TripInvitationCreate(BaseModel):
+    expires_at: datetime = Field(default_factory=default_invitation_expiry)
+    maximum_uses: int = Field(default=1, ge=1, le=100)
+
+
+class TripInvitationResponse(BaseModel):
+    id: UUID
+    trip_id: UUID
+    created_by: UUID
+    invite_token: str
+    expires_at: datetime | None = None
+    maximum_uses: int | None = None
+    use_count: int = Field(ge=0)
+    is_active: bool
+    created_at: datetime

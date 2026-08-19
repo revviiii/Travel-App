@@ -11,10 +11,17 @@ from app.api.dependencies import (
 from app.clients.supabase import (
     SupabaseApiError,
     SupabaseClient,
+    SupabaseInvitationAuthorizationError,
     SupabaseResourceNotFoundError,
 )
 from app.schemas.profile import CurrentUser
-from app.schemas.trip import TripCreate, TripMemberResponse, TripResponse
+from app.schemas.trip import (
+    TripCreate,
+    TripInvitationCreate,
+    TripInvitationResponse,
+    TripMemberResponse,
+    TripResponse,
+)
 
 router = APIRouter(prefix="/trips", tags=["trips"])
 
@@ -77,6 +84,32 @@ async def list_trip_members(
     except SupabaseApiError as exc:
         raise_supabase_api_error(exc)
     return [TripMemberResponse.model_validate(member) for member in members]
+
+
+@router.post(
+    "/{trip_id}/invitations",
+    response_model=TripInvitationResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+async def create_trip_invitation(
+    trip_id: UUID,
+    invitation: TripInvitationCreate,
+    _user: Annotated[CurrentUser, Depends(get_current_user)],
+    supabase: Annotated[SupabaseClient, Depends(get_supabase_client)],
+) -> TripInvitationResponse:
+    try:
+        created = await supabase.create_trip_invitation(
+            trip_id,
+            invitation.model_dump(mode="json"),
+        )
+    except SupabaseInvitationAuthorizationError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only trip owners and admins can create invitations",
+        ) from exc
+    except SupabaseApiError as exc:
+        raise_supabase_api_error(exc)
+    return TripInvitationResponse.model_validate(created)
 
 
 @router.delete("/{trip_id}", status_code=status.HTTP_204_NO_CONTENT)

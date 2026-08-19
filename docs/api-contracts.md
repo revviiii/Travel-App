@@ -103,3 +103,23 @@ Returns the visible trip membership list.
 
 Deletes a trip only when the authenticated user is its owner. Related members
 and invitations are removed by database cascades.
+
+## Invitations
+
+### `POST /api/v1/trips/{trip_id}/invitations`
+
+Owners and admins can create a time-limited invitation. The default request
+creates a one-use token that expires after seven days:
+
+```json
+{}
+```
+
+The response contains `invite_token`. Treat it like a temporary secret and
+share it only with intended group members.
+
+### `POST /api/v1/invitations/{invite_token}/accept`
+
+Atomically adds the authenticated user as a trip member and returns the joined
+trip. Acceptance is idempotent for an existing member. Invalid, expired,
+inactive, and exhausted tokens all return the same safe `400` response.

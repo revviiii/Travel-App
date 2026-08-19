@@ -32,6 +32,12 @@ obtain the same schema.
 
 ## 3. Finish the core schema and authorization
 
+Current progress: Auth profile creation, the core trip/member/invitation
+schema, explicit authenticated grants, RLS policies, atomic trip creation, and
+atomic invitation acceptance are implemented. A rollback-only two-user smoke
+test confirmed that a non-member cannot rely on owner access and can read the
+trip after joining.
+
 1. Review the first migrations with the team.
 2. Confirm that the UI word "Group" maps to the backend entity `trip`.
 3. Create profiles automatically after Supabase Auth signup.
@@ -47,7 +53,10 @@ User B can read it after accepting a valid invitation.
 
 Current progress: Supabase access-token validation, `GET /api/v1/me`,
 `PATCH /api/v1/me`, `GET /api/v1/me/preferences`, and
-`PUT /api/v1/me/preferences` are implemented with mocked tests.
+`PUT /api/v1/me/preferences` are implemented with mocked tests. Authenticated
+trip creation, listing, detail, member listing, owner deletion, invitation
+creation, and invitation acceptance are also implemented and locally verified
+with two users.
 
 Priority after the August 19 frontend update:
 
@@ -73,6 +82,7 @@ POST   /api/v1/trips
 GET    /api/v1/trips
 GET    /api/v1/trips/{trip_id}
 GET    /api/v1/trips/{trip_id}/members
+DELETE /api/v1/trips/{trip_id}
 POST   /api/v1/trips/{trip_id}/invitations
 POST   /api/v1/invitations/{token}/accept
 ```
