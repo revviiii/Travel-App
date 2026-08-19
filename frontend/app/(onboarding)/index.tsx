@@ -10,32 +10,31 @@ import {
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Colors } from '@/constants/colors';
+import { AutumnColors } from '@/constants/colors';
 import { OnboardingSlide, SlideData } from '@/components/onboarding/OnboardingSlide';
 import { PaginationDots } from '@/components/onboarding/PaginationDots';
 
 /**
- * Onboarding slide data. Easy to edit — just update text/image references here.
- * TODO: Replace image strings with actual require() imports once assets are provided.
+ * Onboarding slide data with real assets and exact approved copy.
  */
 const SLIDES: SlideData[] = [
   {
     id: '1',
-    title: 'TITLE',
-    description: 'Traveling with friends made fun and easy',
-    image: 'slide-1.png',
+    title: 'Plan Better, Together.',
+    description: 'Plan trips, share goals, and make every adventure count.',
+    image: require('@/assets/images/slide1.png'),
   },
   {
     id: '2',
-    title: 'TITLE',
-    description: 'Traveling with friends made fun and easy',
-    image: 'slide-2.png',
+    title: 'Pick. Vote. Go.',
+    description: 'Share your favorite places and let the group decide what\u2019s next.',
+    image: require('@/assets/images/slide2.png'),
   },
   {
     id: '3',
-    title: 'TITLE',
-    description: 'Traveling with friends made fun and easy',
-    image: 'slide-3.png',
+    title: 'Explore Your Kind of Trip.',
+    description: 'Discover places that match your interests and make every stop worth exploring.',
+    image: require('@/assets/images/slide3.png'),
   },
 ];
 
@@ -103,15 +102,20 @@ export default function OnboardingCarousel() {
             accessibilityRole="button"
             accessibilityLabel="Get Started"
           >
-            <Text style={styles.getStartedText}>Get Started {'>'}</Text>
+            <Text style={styles.getStartedText}>Get Started</Text>
+            {/* TODO: Replace with final Figma Get Started arrow SVG */}
+            <View style={styles.arrowPlaceholder} />
           </TouchableOpacity>
         ) : (
           <TouchableOpacity
             onPress={handleSkip}
             accessibilityRole="button"
             accessibilityLabel="Skip onboarding"
+            style={styles.skipButton}
           >
-            <Text style={styles.skipText}>Skip {'>'}</Text>
+            <Text style={styles.skipText}>Skip</Text>
+            {/* TODO: Replace with final Figma Skip chevron SVG */}
+            <View style={styles.skipChevronPlaceholder} />
           </TouchableOpacity>
         )}
       </View>
@@ -122,7 +126,7 @@ export default function OnboardingCarousel() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: Colors.background,
+    backgroundColor: AutumnColors.background,
   },
   flatList: {
     flex: 1,
@@ -132,22 +136,44 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     paddingHorizontal: 24,
-    paddingTop: 16,
+    paddingTop: 0,
+  },
+  skipButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingVertical: 8,
+    paddingHorizontal: 4,
   },
   skipText: {
-    fontSize: 16,
-    fontWeight: '500',
-    color: Colors.accent,
+    fontSize: 15,
+    fontWeight: '600',
+    color: AutumnColors.primary,
+  },
+  skipChevronPlaceholder: {
+    width: 12,
+    height: 12,
+    borderRadius: 3,
+    backgroundColor: AutumnColors.chipBorder,
   },
   getStartedButton: {
-    backgroundColor: Colors.primary,
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: AutumnColors.primary,
     paddingHorizontal: 20,
     paddingVertical: 12,
     borderRadius: 8,
+    gap: 8,
   },
   getStartedText: {
-    fontSize: 14,
+    fontSize: 15,
     fontWeight: '600',
-    color: Colors.buttonText,
+    color: '#FFFFFF',
+  },
+  arrowPlaceholder: {
+    width: 14,
+    height: 14,
+    borderRadius: 3,
+    backgroundColor: 'rgba(255,255,255,0.4)',
   },
 });

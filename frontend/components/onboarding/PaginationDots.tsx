@@ -1,5 +1,5 @@
 import { View, StyleSheet } from 'react-native';
-import { Colors } from '@/constants/colors';
+import { AutumnColors } from '@/constants/colors';
 
 interface PaginationDotsProps {
   /** Total number of slides */
@@ -36,10 +36,10 @@ const styles = StyleSheet.create({
   },
   dotActive: {
     width: 24,
-    backgroundColor: Colors.dotActive,
+    backgroundColor: AutumnColors.primary,
   },
   dotInactive: {
     width: 8,
-    backgroundColor: Colors.dotInactive,
+    backgroundColor: AutumnColors.chipBorder,
   },
 });

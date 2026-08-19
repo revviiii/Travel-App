@@ -1,7 +1,7 @@
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Colors } from '@/constants/colors';
+import { AutumnColors } from '@/constants/colors';
 
 export default function LocationSetup() {
   const router = useRouter();
@@ -13,6 +13,7 @@ export default function LocationSetup() {
 
   const handleSkip = () => {
     // TODO: Continue to authentication flow
+    router.replace('/Login');
   };
 
   const handleAllowLocation = () => {
@@ -34,15 +35,19 @@ export default function LocationSetup() {
           accessibilityLabel="Go back"
           style={styles.backButton}
         >
-          <Text style={styles.backArrow}>{'<-'}</Text>
+          {/* TODO: Replace with final Figma Back arrow SVG */}
+          <View style={styles.backIconPlaceholder} />
         </TouchableOpacity>
 
         <TouchableOpacity
           onPress={handleSkip}
           accessibilityRole="button"
           accessibilityLabel="Skip location setup"
+          style={styles.skipButton}
         >
-          <Text style={styles.skipText}>Skip {'>'}</Text>
+          <Text style={styles.skipText}>Skip</Text>
+          {/* TODO: Replace with final Figma Skip chevron SVG */}
+          <View style={styles.skipChevronPlaceholder} />
         </TouchableOpacity>
       </View>
 
@@ -86,7 +91,7 @@ export default function LocationSetup() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: Colors.background,
+    backgroundColor: AutumnColors.background,
     paddingHorizontal: 24,
   },
   header: {
@@ -96,17 +101,35 @@ const styles = StyleSheet.create({
     marginBottom: 24,
   },
   backButton: {
-    padding: 4,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
-  backArrow: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: Colors.text,
+  backIconPlaceholder: {
+    width: 20,
+    height: 20,
+    borderRadius: 4,
+    backgroundColor: AutumnColors.chipBorder,
+  },
+  skipButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingVertical: 8,
+    paddingHorizontal: 4,
   },
   skipText: {
     fontSize: 16,
     fontWeight: '500',
-    color: Colors.accent,
+    color: AutumnColors.primary,
+  },
+  skipChevronPlaceholder: {
+    width: 12,
+    height: 12,
+    borderRadius: 3,
+    backgroundColor: AutumnColors.chipBorder,
   },
   content: {
     flex: 1,
@@ -118,7 +141,7 @@ const styles = StyleSheet.create({
     width: '85%',
     aspectRatio: 4 / 3,
     borderRadius: 16,
-    backgroundColor: Colors.placeholder,
+    backgroundColor: AutumnColors.chipBorder,
     justifyContent: 'center',
     alignItems: 'center',
     marginBottom: 32,
@@ -126,18 +149,18 @@ const styles = StyleSheet.create({
   imagePlaceholderText: {
     fontSize: 14,
     fontWeight: '600',
-    color: Colors.placeholderText,
+    color: AutumnColors.body,
   },
   heading: {
     fontSize: 22,
     fontWeight: '700',
-    color: Colors.text,
+    color: AutumnColors.heading,
     textAlign: 'center',
     marginBottom: 12,
   },
   description: {
     fontSize: 14,
-    color: Colors.textSecondary,
+    color: AutumnColors.body,
     textAlign: 'center',
     lineHeight: 22,
     paddingHorizontal: 24,
@@ -148,7 +171,7 @@ const styles = StyleSheet.create({
   },
   primaryButton: {
     width: '100%',
-    backgroundColor: Colors.primary,
+    backgroundColor: AutumnColors.primary,
     paddingVertical: 16,
     borderRadius: 28,
     alignItems: 'center',
@@ -156,7 +179,7 @@ const styles = StyleSheet.create({
   primaryButtonText: {
     fontSize: 16,
     fontWeight: '600',
-    color: Colors.buttonText,
+    color: '#FFFFFF',
   },
   secondaryButton: {
     paddingVertical: 8,
@@ -164,7 +187,7 @@ const styles = StyleSheet.create({
   secondaryButtonText: {
     fontSize: 14,
     fontWeight: '500',
-    color: Colors.text,
+    color: AutumnColors.heading,
     textDecorationLine: 'underline',
   },
 });

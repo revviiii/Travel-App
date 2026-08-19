@@ -1,13 +1,18 @@
 import { useEffect } from 'react';
 import { View, Text, StyleSheet } from 'react-native';
+import { Image } from 'expo-image';
 import { useRouter } from 'expo-router';
-import { Colors } from '@/constants/colors';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { AutumnColors } from '@/constants/colors';
+
+const appLogo = require('@/assets/images/app-logo.svg');
 
 /** Delay in milliseconds before auto-navigating to onboarding. Easy to change later. */
 const SPLASH_DELAY_MS = 2000;
 
 export default function StartingScreen() {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
 
   useEffect(() => {
     // TODO: Check session/authentication state here before navigating.
@@ -22,13 +27,14 @@ export default function StartingScreen() {
   }, [router]);
 
   return (
-    <View style={styles.container}>
-      {/* TODO: Replace with final exported app logo */}
-      <View style={styles.logoPlaceholder}>
-        <Text style={styles.logoText}>LOGO</Text>
-      </View>
-
-      <Text style={styles.title}>Travel App</Text>
+    <View style={[styles.container, { paddingTop: insets.top, paddingBottom: insets.bottom }]}>
+      <Image
+        source={appLogo}
+        style={styles.logo}
+        contentFit="contain"
+        accessibilityLabel="App logo"
+      />
+      <Text style={styles.title}>Ramyl</Text>
     </View>
   );
 }
@@ -36,28 +42,19 @@ export default function StartingScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: Colors.background,
+    backgroundColor: AutumnColors.background,
     justifyContent: 'center',
     alignItems: 'center',
     paddingHorizontal: 24,
   },
-  logoPlaceholder: {
-    width: 120,
-    height: 120,
-    borderRadius: 16,
-    backgroundColor: Colors.placeholder,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: 24,
-  },
-  logoText: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: Colors.placeholderText,
+  logo: {
+    width: 140,
+    height: 140,
+    marginBottom: 20,
   },
   title: {
-    fontSize: 24,
+    fontSize: 28,
     fontWeight: '700',
-    color: Colors.text,
+    color: AutumnColors.heading,
   },
 });

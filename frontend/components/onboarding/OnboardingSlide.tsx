@@ -1,11 +1,11 @@
-import { View, Text, StyleSheet } from 'react-native';
-import { Colors } from '@/constants/colors';
+import { View, Text, StyleSheet, Image } from 'react-native';
+import { AutumnColors } from '@/constants/colors';
 
 export interface SlideData {
   id: string;
   title: string;
   description: string;
-  image: string;
+  image: any;
 }
 
 interface OnboardingSlideProps {
@@ -18,11 +18,12 @@ export function OnboardingSlide({ slide, width }: OnboardingSlideProps) {
     <View style={[styles.container, { width }]}>
       <Text style={styles.title}>{slide.title}</Text>
 
-      {/* TODO: Replace with exported Figma onboarding illustration */}
-      <View style={styles.imagePlaceholder}>
-        <Text style={styles.imagePlaceholderText}>ONBOARDING IMAGE</Text>
-        <Text style={styles.imagePlaceholderLabel}>{slide.image}</Text>
-      </View>
+      <Image
+        source={slide.image}
+        style={styles.image}
+        resizeMode="contain"
+        accessibilityLabel={`Onboarding illustration for: ${slide.title}`}
+      />
 
       <Text style={styles.description}>{slide.description}</Text>
     </View>
@@ -33,41 +34,30 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     alignItems: 'center',
+    justifyContent: 'center',
     paddingHorizontal: 24,
-    paddingTop: 60,
   },
   title: {
-    fontSize: 22,
+    fontSize: 25,
     fontWeight: '700',
-    color: Colors.text,
+    color: AutumnColors.heading,
     textAlign: 'center',
-    marginBottom: 24,
+    marginBottom: 22,
   },
-  imagePlaceholder: {
-    width: '100%',
+  image: {
+    width: '88%',
+    maxHeight: '55%',
     aspectRatio: 3 / 4,
     borderRadius: 16,
-    backgroundColor: Colors.placeholder,
-    justifyContent: 'center',
-    alignItems: 'center',
     flexShrink: 1,
   },
-  imagePlaceholderText: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: Colors.placeholderText,
-  },
-  imagePlaceholderLabel: {
-    fontSize: 12,
-    color: Colors.placeholderText,
-    marginTop: 4,
-  },
   description: {
-    fontSize: 16,
-    color: Colors.textSecondary,
+    fontSize: 15,
+    fontWeight: '400',
+    color: AutumnColors.body,
     textAlign: 'center',
-    marginTop: 24,
-    lineHeight: 24,
-    paddingHorizontal: 16,
+    marginTop: 26,
+    lineHeight: 23,
+    paddingHorizontal: 20,
   },
 });
