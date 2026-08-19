@@ -32,11 +32,11 @@ export default function UserProfileScreen() {
   };
 
   const handlePersonalInfo = () => {
-    Alert.alert('Personal Info', 'Personal information settings will be connected here.');
+    router.push('/Personalinfo');
   };
 
   const handleTravelPreferences = () => {
-    Alert.alert('Travel Preferences', 'Travel preference settings will be connected here.');
+    router.push('/Travelpreferences');
   };
 
   const handleLogout = () => {
