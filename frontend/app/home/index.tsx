@@ -1,4 +1,5 @@
 import { Image } from 'expo-image';
+import { router } from 'expo-router';
 import { useState, useCallback } from 'react';
 import {
   FlatList,
@@ -30,7 +31,7 @@ export default function HomeScreen() {
   const userName = 'Traveler';
 
   const handleProfilePress = useCallback(() => {
-    // TODO: Navigate to the user's profile screen
+    router.push('/Userprofile');
   }, []);
 
   const handleSettingsPress = useCallback(() => {

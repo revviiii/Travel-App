@@ -100,7 +100,7 @@ export default function PreferencesScreen() {
 
         {/* Description */}
         <Text style={styles.description}>
-          Share your travel preferences, and we'll craft your perfect trip.
+          Share your travel preferences, and we&apos;ll craft your perfect trip.
         </Text>
 
         {/* Preference chips — flex-wrap flow layout */}
