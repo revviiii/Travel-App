@@ -1,5 +1,7 @@
-import { useState, useCallback } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import {
+  ActivityIndicator,
+  Alert,
   FlatList,
   Modal,
   StyleSheet,
@@ -10,6 +12,7 @@ import {
 } from 'react-native';
 import { Image } from 'expo-image';
 import { useRouter, RelativePathString } from 'expo-router';
+import MapView, { Marker } from 'react-native-maps';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { AutumnColors } from '@/constants/colors';
 import { PlannerTab } from '@/components/home/PlannerTab';
@@ -18,19 +21,31 @@ import { GroupCard } from '@/components/home/GroupCard';
 import { CreateGroupModal } from '@/components/home/CreateGroupModal';
 import { TravelGoalCard } from '@/components/home/TravelGoalCard';
 import { TravelGoalInput } from '@/components/home/TravelGoalInput';
+import { createTrip, deleteTrip, getTrips, TripSummary } from '@/lib/api';
 
 const settingsIcon = require('@/assets/images/settings_ic.svg');
+
+const MANILA_CENTER = {
+  latitude: 14.5995,
+  longitude: 120.9842,
+};
 
 type PlannerSection = 'group' | 'itinerary' | 'goals';
 
 interface GroupData {
   id: string;
   name: string;
-  /**
-   * Temporary placeholder member count for UI testing.
-   * TODO: Replace with actual member data from backend.
-   */
   memberCount: number;
+  currentUserRole: TripSummary['current_user_role'];
+}
+
+function toGroupData(trip: TripSummary): GroupData {
+  return {
+    id: trip.id,
+    name: trip.name,
+    memberCount: trip.member_count,
+    currentUserRole: trip.current_user_role,
+  };
 }
 
 export default function HomeScreen() {
@@ -41,10 +56,12 @@ export default function HomeScreen() {
   const [activeTab, setActiveTab] = useState<PlannerSection>('group');
 
   // Destination search
-  const [destination, setDestination] = useState('');
+  const [destination, setDestination] = useState('Manila');
 
   // Group state
   const [groups, setGroups] = useState<GroupData[]>([]);
+  const [isLoadingGroups, setIsLoadingGroups] = useState(true);
+  const [groupError, setGroupError] = useState<string | null>(null);
   const [showCreateGroup, setShowCreateGroup] = useState(false);
   const [groupToDelete, setGroupToDelete] = useState<string | null>(null);
 
@@ -66,24 +83,52 @@ export default function HomeScreen() {
   }, [destination, router]);
 
   // --- Groups ---
-  const handleCreateGroup = useCallback((name: string) => {
-    // TODO: Persist groups through backend/API
-    setGroups((prev) => [
-      ...prev,
-      { id: Date.now().toString(), name, memberCount: 0 },
-    ]);
-    setShowCreateGroup(false);
+  const loadGroups = useCallback(async () => {
+    setIsLoadingGroups(true);
+    setGroupError(null);
+    try {
+      const trips = await getTrips();
+      setGroups(trips.map(toGroupData));
+    } catch (error) {
+      setGroupError(error instanceof Error ? error.message : 'Unable to load groups.');
+    } finally {
+      setIsLoadingGroups(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    void loadGroups();
+  }, [loadGroups]);
+
+  const handleCreateGroup = useCallback(async (name: string) => {
+    try {
+      const trip = await createTrip(name);
+      setGroups((prev) => [toGroupData(trip), ...prev]);
+      setShowCreateGroup(false);
+    } catch (error) {
+      Alert.alert(
+        'Unable to create group',
+        error instanceof Error ? error.message : 'Please try again.',
+      );
+    }
   }, []);
 
   const handleLongPressGroup = useCallback((id: string) => {
     setGroupToDelete(id);
   }, []);
 
-  const handleConfirmDeleteGroup = useCallback(() => {
+  const handleConfirmDeleteGroup = useCallback(async () => {
     if (groupToDelete !== null) {
-      // TODO: Delete group through backend/API when integration is implemented
-      setGroups((prev) => prev.filter((g) => g.id !== groupToDelete));
-      setGroupToDelete(null);
+      try {
+        await deleteTrip(groupToDelete);
+        setGroups((prev) => prev.filter((group) => group.id !== groupToDelete));
+        setGroupToDelete(null);
+      } catch (error) {
+        Alert.alert(
+          'Unable to delete group',
+          error instanceof Error ? error.message : 'Please try again.',
+        );
+      }
     }
   }, [groupToDelete]);
 
@@ -122,7 +167,11 @@ export default function HomeScreen() {
         onPress={() => {
           // TODO: Navigate to group detail screen
         }}
-        onLongPress={() => handleLongPressGroup(item.id)}
+        onLongPress={
+          item.currentUserRole === 'owner'
+            ? () => handleLongPressGroup(item.id)
+            : undefined
+        }
       />
     ),
     [handleLongPressGroup],
@@ -138,6 +187,29 @@ export default function HomeScreen() {
   const renderContent = () => {
     switch (activeTab) {
       case 'group':
+        if (isLoadingGroups) {
+          return (
+            <View style={styles.groupStatus}>
+              <ActivityIndicator color={AutumnColors.primary} />
+              <Text style={styles.groupStatusText}>Loading groups...</Text>
+            </View>
+          );
+        }
+        if (groupError) {
+          return (
+            <View style={styles.groupStatus}>
+              <Text style={styles.groupErrorText}>{groupError}</Text>
+              <TouchableOpacity
+                accessibilityRole="button"
+                accessibilityLabel="Retry loading groups"
+                onPress={() => void loadGroups()}
+                style={styles.retryButton}
+              >
+                <Text style={styles.retryButtonText}>Retry</Text>
+              </TouchableOpacity>
+            </View>
+          );
+        }
         if (groups.length === 0) {
           return (
             <View style={styles.groupSection}>
@@ -257,11 +329,28 @@ export default function HomeScreen() {
         Where do you{'\n'}want to explore today?
       </Text>
 
-      {/* Map placeholder */}
-      {/* TODO: Replace with real map component when maps/API integration is implemented */}
-      <View style={styles.mapPlaceholder}>
-        <Text style={styles.mapPlaceholderText}>MAP PLACEHOLDER</Text>
-      </View>
+      <TouchableOpacity
+        activeOpacity={0.9}
+        accessibilityRole="button"
+        accessibilityLabel="Open live Manila map"
+        onPress={handleSearchSubmit}
+        style={styles.mapPlaceholder}
+      >
+        <MapView
+          initialRegion={{
+            ...MANILA_CENTER,
+            latitudeDelta: 0.12,
+            longitudeDelta: 0.12,
+          }}
+          pointerEvents="none"
+          style={StyleSheet.absoluteFillObject}
+        >
+          <Marker coordinate={MANILA_CENTER} title="Manila" />
+        </MapView>
+        <View style={styles.mapPreviewLabel}>
+          <Text style={styles.mapPlaceholderText}>Open live recommendations</Text>
+        </View>
+      </TouchableOpacity>
 
       {/* Search / destination field */}
       <View style={styles.searchContainer}>
@@ -443,6 +532,7 @@ const styles = StyleSheet.create({
     width: '100%',
     aspectRatio: 2,
     borderRadius: 12,
+    overflow: 'hidden',
     backgroundColor: '#EDE9E0',
     justifyContent: 'center',
     alignItems: 'center',
@@ -451,7 +541,16 @@ const styles = StyleSheet.create({
   mapPlaceholderText: {
     fontSize: 13,
     fontWeight: '600',
-    color: AutumnColors.body,
+    color: '#FFFFFF',
+  },
+  mapPreviewLabel: {
+    position: 'absolute',
+    bottom: 8,
+    alignSelf: 'center',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 14,
+    backgroundColor: AutumnColors.primary,
   },
 
   /* Search */
@@ -496,6 +595,33 @@ const styles = StyleSheet.create({
   /* Group section */
   groupSection: {
     flex: 1,
+  },
+  groupStatus: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 12,
+  },
+  groupStatusText: {
+    color: AutumnColors.body,
+    fontSize: 14,
+  },
+  groupErrorText: {
+    color: AutumnColors.body,
+    fontSize: 14,
+    lineHeight: 20,
+    textAlign: 'center',
+  },
+  retryButton: {
+    borderRadius: 18,
+    backgroundColor: AutumnColors.primary,
+    paddingHorizontal: 20,
+    paddingVertical: 9,
+  },
+  retryButtonText: {
+    color: '#FFFFFF',
+    fontSize: 13,
+    fontWeight: '600',
   },
   groupFlatList: {
     flex: 1,

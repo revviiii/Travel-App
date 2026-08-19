@@ -72,3 +72,34 @@ response, cost controls, and mobile handoff.
 
 Returns normalized distance, duration, route legs, and an encoded polyline for
 an origin, destination, and travel mode.
+
+## Trips (called Groups in the UI)
+
+### `POST /api/v1/trips`
+
+Creates a trip and its owner membership in one database transaction.
+
+```json
+{
+  "name": "Manila Weekend",
+  "destination_name": "Manila"
+}
+```
+
+### `GET /api/v1/trips`
+
+Returns only trips visible to the authenticated member. Each item includes
+`member_count` and `current_user_role` for the Home screen.
+
+### `GET /api/v1/trips/{trip_id}`
+
+Returns one visible trip, or `404` when it does not exist or RLS hides it.
+
+### `GET /api/v1/trips/{trip_id}/members`
+
+Returns the visible trip membership list.
+
+### `DELETE /api/v1/trips/{trip_id}`
+
+Deletes a trip only when the authenticated user is its owner. Related members
+and invitations are removed by database cascades.

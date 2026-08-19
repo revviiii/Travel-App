@@ -10,6 +10,7 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
+import { supabase } from '@/lib/supabase';
 
 const googleIcon = require('@/assets/images/Google_ic.svg');
 const facebookIcon = require('@/assets/images/Facebook_ic.svg');
@@ -30,6 +31,7 @@ export default function LoginScreen() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [isPasswordVisible, setIsPasswordVisible] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
 
   const isPasswordAccepted =
     password.length >= MINIMUM_PASSWORD_LENGTH;
@@ -41,19 +43,28 @@ export default function LoginScreen() {
     );
   };
 
-  const handleLogin = () => {
-    if (
-      email.trim() &&
-      password.length >= MINIMUM_PASSWORD_LENGTH
-    ) {
-      // TODO: Replace with real authentication. Navigate to preferences temporarily.
-      router.replace('/preferences');
-    } else {
+  const handleLogin = async () => {
+    if (!email.trim() || password.length < MINIMUM_PASSWORD_LENGTH) {
       Alert.alert(
         'Invalid login',
         'Please enter a valid email and password.',
       );
+      return;
     }
+
+    setIsLoading(true);
+    const { error } = await supabase.auth.signInWithPassword({
+      email: email.trim(),
+      password,
+    });
+    setIsLoading(false);
+
+    if (error) {
+      Alert.alert('Unable to log in', error.message);
+      return;
+    }
+
+    router.replace('/home');
   };
 
   return (
@@ -192,14 +203,43 @@ export default function LoginScreen() {
             {/* LOGIN BUTTON */}
             <TouchableOpacity
               activeOpacity={0.85}
+              disabled={isLoading}
               onPress={handleLogin}
               style={[
                 styles.loginButton,
                 styles.formLoginButton,
+                isLoading && styles.disabledButton,
               ]}
             >
               <Text style={styles.loginText}>
-                Log In
+                {isLoading ? 'Logging In...' : 'Log In'}
+              </Text>
+            </TouchableOpacity>
+
+            <View style={styles.footer}>
+              <Text style={styles.footerText}>
+                Don&apos;t have an account?
+              </Text>
+
+              <TouchableOpacity
+                accessibilityLabel="Sign up"
+                accessibilityRole="link"
+                onPress={() => router.push('/Signup')}
+              >
+                <Text style={styles.signUpText}>
+                  Sign Up
+                </Text>
+              </TouchableOpacity>
+            </View>
+
+            <TouchableOpacity
+              accessibilityLabel="Back to login options"
+              accessibilityRole="button"
+              onPress={() => setShowEmailForm(false)}
+              style={styles.backButton}
+            >
+              <Text style={styles.backButtonText}>
+                Back to login options
               </Text>
             </TouchableOpacity>
           </View>
@@ -470,6 +510,10 @@ const styles = StyleSheet.create({
     marginTop: 26,
   },
 
+  disabledButton: {
+    opacity: 0.6,
+  },
+
   loginText: {
     color: '#FFFFFF',
     fontSize: 14,
@@ -568,6 +612,18 @@ const styles = StyleSheet.create({
     color: '#2538B7',
     fontSize: 13,
     fontWeight: '700',
+    lineHeight: 16,
+  },
+
+  backButton: {
+    alignItems: 'center',
+    marginTop: 18,
+  },
+
+  backButtonText: {
+    color: '#5F6378',
+    fontSize: 12,
+    fontWeight: '600',
     lineHeight: 16,
   },
 });

@@ -10,6 +10,7 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
+import { supabase } from '@/lib/supabase';
 
 const userIcon = require('@/assets/images/User_ic.svg');
 const emailIcon = require('@/assets/images/Email_ic.svg');
@@ -38,6 +39,7 @@ export default function SignupScreen() {
   const [password, setPassword] = useState('');
   const [isPasswordVisible, setIsPasswordVisible] = useState(false);
   const [errors, setErrors] = useState<FormErrors>({});
+  const [isLoading, setIsLoading] = useState(false);
 
   const updateField = (
     field: FieldName,
@@ -91,11 +93,38 @@ export default function SignupScreen() {
     return Object.keys(nextErrors).length === 0;
   };
 
-  const handleSignup = () => {
-    if (validateForm()) {
-      // TODO: Replace with real authentication. Navigate to preferences temporarily.
-      router.replace('/preferences');
+  const handleSignup = async () => {
+    if (!validateForm()) {
+      return;
     }
+
+    setIsLoading(true);
+    const { data, error } = await supabase.auth.signUp({
+      email: email.trim(),
+      password,
+      options: {
+        data: {
+          full_name: fullName.trim(),
+        },
+      },
+    });
+    setIsLoading(false);
+
+    if (error) {
+      Alert.alert('Unable to sign up', error.message);
+      return;
+    }
+
+    if (!data.session) {
+      Alert.alert(
+        'Check your email',
+        'Confirm your email address, then return to the Log In screen.',
+      );
+      router.replace('/Login');
+      return;
+    }
+
+    router.replace('/preferences');
   };
 
   const handleSocialSignup = (
@@ -238,11 +267,12 @@ export default function SignupScreen() {
             accessibilityLabel="Sign up"
             accessibilityRole="button"
             activeOpacity={0.85}
+            disabled={isLoading}
             onPress={handleSignup}
-            style={styles.signupButton}
+            style={[styles.signupButton, isLoading && styles.disabledButton]}
           >
             <Text style={styles.signupButtonText}>
-              Sign Up
+              {isLoading ? 'Creating Account...' : 'Sign Up'}
             </Text>
           </TouchableOpacity>
         </View>
@@ -539,6 +569,10 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: '600',
     lineHeight: 17,
+  },
+
+  disabledButton: {
+    opacity: 0.6,
   },
 
   divider: {

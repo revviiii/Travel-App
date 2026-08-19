@@ -9,6 +9,10 @@ PROFILE_FIELDS = (
     "id,full_name,avatar_url,country,phone_number,gender,preferred_language,"
     "onboarding_completed,created_at,updated_at"
 )
+TRIP_FIELDS = (
+    "id,owner_id,name,destination_name,destination_latitude,destination_longitude,"
+    "start_date,end_date,budget,status,created_at,updated_at"
+)
 
 
 class SupabaseAuthenticationError(RuntimeError):
@@ -17,6 +21,10 @@ class SupabaseAuthenticationError(RuntimeError):
 
 class SupabaseApiError(RuntimeError):
     """Raised when a Supabase service cannot complete a valid request."""
+
+
+class SupabaseResourceNotFoundError(SupabaseApiError):
+    """Raised when a resource is missing or hidden by row-level security."""
 
 
 class SupabaseClient:
@@ -104,6 +112,98 @@ class SupabaseClient:
         )
         return [str(row["preference_key"]) for row in rows]
 
+    async def create_trip(
+        self,
+        user_id: UUID,
+        values: Mapping[str, object],
+    ) -> Mapping[str, object]:
+        rpc_values = {f"new_{key}": value for key, value in values.items()}
+        rows = await self._request_rows(
+            "POST",
+            "/rest/v1/rpc/create_trip_with_owner",
+            json=rpc_values,
+            allow_object=True,
+        )
+        if not rows:
+            raise SupabaseApiError("Trip was not created")
+        return dict(rows[0]) | {
+            "member_count": 1,
+            "current_user_role": "owner",
+        }
+
+    async def list_trips(self, user_id: UUID) -> list[Mapping[str, object]]:
+        trips = await self._request_rows(
+            "GET",
+            "/rest/v1/trips",
+            params={"select": TRIP_FIELDS, "order": "created_at.desc"},
+        )
+        return await self._add_trip_membership(trips, user_id)
+
+    async def get_trip(self, trip_id: UUID, user_id: UUID) -> Mapping[str, object]:
+        trips = await self._request_rows(
+            "GET",
+            "/rest/v1/trips",
+            params={"id": f"eq.{trip_id}", "select": TRIP_FIELDS},
+        )
+        if not trips:
+            raise SupabaseResourceNotFoundError("Trip was not found")
+        return (await self._add_trip_membership(trips, user_id))[0]
+
+    async def list_trip_members(self, trip_id: UUID) -> list[Mapping[str, object]]:
+        return await self._request_rows(
+            "GET",
+            "/rest/v1/trip_members",
+            params={
+                "trip_id": f"eq.{trip_id}",
+                "select": "user_id,role,joined_at",
+                "order": "joined_at.asc",
+            },
+        )
+
+    async def delete_trip(self, trip_id: UUID) -> None:
+        rows = await self._request_rows(
+            "DELETE",
+            "/rest/v1/trips",
+            params={"id": f"eq.{trip_id}", "select": "id"},
+            headers={"Prefer": "return=representation"},
+        )
+        if not rows:
+            raise SupabaseResourceNotFoundError("Trip was not found")
+
+    async def _add_trip_membership(
+        self,
+        trips: list[Mapping[str, object]],
+        user_id: UUID,
+    ) -> list[Mapping[str, object]]:
+        if not trips:
+            return []
+
+        trip_ids = [str(trip["id"]) for trip in trips]
+        members = await self._request_rows(
+            "GET",
+            "/rest/v1/trip_members",
+            params={
+                "trip_id": f"in.({','.join(trip_ids)})",
+                "select": "trip_id,user_id,role",
+            },
+        )
+        member_counts: dict[str, int] = {trip_id: 0 for trip_id in trip_ids}
+        current_roles: dict[str, object] = {}
+        for member in members:
+            trip_id = str(member["trip_id"])
+            member_counts[trip_id] = member_counts.get(trip_id, 0) + 1
+            if str(member["user_id"]) == str(user_id):
+                current_roles[trip_id] = member["role"]
+
+        return [
+            dict(trip)
+            | {
+                "member_count": member_counts[str(trip["id"])],
+                "current_user_role": current_roles[str(trip["id"])],
+            }
+            for trip in trips
+        ]
+
     async def _request_rows(
         self,
         method: str,
@@ -112,6 +212,7 @@ class SupabaseClient:
         params: Mapping[str, str] | None = None,
         json: Mapping[str, object] | None = None,
         headers: Mapping[str, str] | None = None,
+        allow_object: bool = False,
     ) -> list[Mapping[str, object]]:
         request_headers = self._headers | dict(headers or {})
 
@@ -130,6 +231,8 @@ class SupabaseClient:
             raise SupabaseApiError("Supabase Data API rejected the request")
 
         payload = response.json()
+        if allow_object and isinstance(payload, Mapping):
+            return [payload]
         if not isinstance(payload, list):
             raise SupabaseApiError("Supabase Data API returned an invalid response")
         return payload

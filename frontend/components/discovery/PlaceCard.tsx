@@ -5,7 +5,7 @@ interface PlaceCardProps {
   category: string;
   name: string;
   location: string;
-  rating: number;
+  rating: number | null;
   status: string;
 }
 
@@ -36,7 +36,7 @@ export function PlaceCard({ category, name, location, rating, status }: PlaceCar
         </Text>
 
         <View style={styles.metaRow}>
-          <Text style={styles.rating}>{rating.toFixed(1)}</Text>
+          <Text style={styles.rating}>{rating === null ? 'Google' : rating.toFixed(1)}</Text>
           <Text style={styles.status}>{status}</Text>
         </View>
       </View>
