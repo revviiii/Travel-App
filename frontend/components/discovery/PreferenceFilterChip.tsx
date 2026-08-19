@@ -8,9 +8,11 @@ interface PreferenceFilterChipProps {
 }
 
 /**
- * A filter chip for the Discovery preferences section.
- * Active state uses olive green background matching the planner tab style.
- * Includes a placeholder for the future SVG icon.
+ * A Discovery quick-filter chip.
+ * Larger rounded pill shape matching the Figma reference.
+ * Active: warm yellow background + brown text.
+ * Inactive: cream background + muted border + normal text (still selectable, not disabled).
+ * Includes a placeholder for the future SVG icon on the left.
  */
 export function PreferenceFilterChip({ label, active, onPress }: PreferenceFilterChipProps) {
   return (
@@ -22,7 +24,7 @@ export function PreferenceFilterChip({ label, active, onPress }: PreferenceFilte
       accessibilityLabel={`${label} filter`}
       style={[styles.chip, active ? styles.chipActive : styles.chipInactive]}
     >
-      {/* TODO: Replace with final Figma SVG icon */}
+      {/* TODO: Replace with final Figma preference SVG icon */}
       <View style={[styles.iconPlaceholder, active && styles.iconActive]} />
       <Text style={[styles.label, active && styles.labelActive]}>{label}</Text>
     </TouchableOpacity>
@@ -33,10 +35,10 @@ const styles = StyleSheet.create({
   chip: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 20,
-    gap: 6,
+    height: 38,
+    paddingHorizontal: 14,
+    borderRadius: 19,
+    gap: 7,
     borderWidth: 1,
   },
   chipInactive: {
@@ -44,24 +46,24 @@ const styles = StyleSheet.create({
     borderColor: AutumnColors.chipBorder,
   },
   chipActive: {
-    backgroundColor: AutumnColors.secondaryAccent,
-    borderColor: AutumnColors.secondaryAccent,
+    backgroundColor: AutumnColors.filterChipBackground,
+    borderColor: AutumnColors.filterChipBackground,
   },
   iconPlaceholder: {
-    width: 14,
-    height: 14,
-    borderRadius: 3,
+    width: 18,
+    height: 18,
+    borderRadius: 9,
     backgroundColor: AutumnColors.chipBorder,
   },
   iconActive: {
-    backgroundColor: 'rgba(255,255,255,0.5)',
+    backgroundColor: AutumnColors.filterChipText,
   },
   label: {
-    fontSize: 12,
+    fontSize: 13,
     fontWeight: '500',
     color: AutumnColors.chipText,
   },
   labelActive: {
-    color: '#FFFFFF',
+    color: AutumnColors.filterChipText,
   },
 });

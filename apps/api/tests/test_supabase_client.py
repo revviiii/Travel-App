@@ -39,9 +39,7 @@ def test_supabase_client_validates_token_with_auth_server() -> None:
 def test_create_trip_accepts_single_object_rpc_response() -> None:
     async def scenario() -> None:
         def handler(request: httpx.Request) -> httpx.Response:
-            assert str(request.url) == (
-                "http://localhost:54321/rest/v1/rpc/create_trip_with_owner"
-            )
+            assert str(request.url) == ("http://localhost:54321/rest/v1/rpc/create_trip_with_owner")
             assert json.loads(request.content) == {
                 "new_name": "Manila Weekend",
                 "new_destination_name": None,

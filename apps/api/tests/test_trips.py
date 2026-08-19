@@ -209,6 +209,4 @@ def test_invalid_invitation_is_rejected_safely() -> None:
 
     app.dependency_overrides.clear()
     assert response.status_code == 400
-    assert response.json() == {
-        "detail": "Invitation is invalid, expired, or no longer active"
-    }
+    assert response.json() == {"detail": "Invitation is invalid, expired, or no longer active"}

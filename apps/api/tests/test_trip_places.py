@@ -155,12 +155,8 @@ def test_add_and_remove_vote() -> None:
     fake_supabase = FakeSupabaseClient()
 
     with authenticated_client(fake_supabase) as client:
-        vote_response = client.put(
-            f"/api/v1/trips/{TRIP_ID}/places/{TRIP_PLACE_ID}/vote"
-        )
-        unvote_response = client.delete(
-            f"/api/v1/trips/{TRIP_ID}/places/{TRIP_PLACE_ID}/vote"
-        )
+        vote_response = client.put(f"/api/v1/trips/{TRIP_ID}/places/{TRIP_PLACE_ID}/vote")
+        unvote_response = client.delete(f"/api/v1/trips/{TRIP_ID}/places/{TRIP_PLACE_ID}/vote")
 
     app.dependency_overrides.clear()
     assert vote_response.status_code == 200

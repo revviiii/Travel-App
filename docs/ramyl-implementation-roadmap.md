@@ -1,8 +1,19 @@
 # Ramyl implementation roadmap
 
-Ramyl owns the database, core backend foundation, Google Places integration,
-and Google Routes integration. Complete the steps in order; each step has a
-working result that can be reviewed independently.
+Ramyl owns the complete backend and database: FastAPI endpoints, Supabase
+schema, migrations, Auth integration, row-level security, external service
+clients, tests, API contracts, and local/deployment configuration. This also
+includes the server-side Google Places and Google Routes integrations.
+
+Current highest-priority remaining work:
+
+1. Replace the frontend's temporary preference context with the existing
+   database-backed preference endpoints.
+2. Implement persisted itinerary and itinerary-item APIs and connect the UI.
+3. Add route caching, explicit refresh rules, and Google request cost controls.
+4. Add Realtime subscriptions where the group UI needs live votes or updates.
+5. Complete integration tests, deployment configuration, monitoring, and the
+   frontend handoff checklist.
 
 ## 1. Protect and scaffold the repository
 
@@ -61,16 +72,14 @@ implemented with owner-only RLS and connected to the Home screen.
 
 Priority after the August 19 frontend update:
 
-1. Apply the preferences RPC migration and smoke-test these four endpoints
-   against local Supabase.
-2. Give frontend developers the API contract and have them replace mock
-   login, signup, and preference actions with Supabase Auth plus these APIs.
-3. Implement trip/group CRUD because the Home screen currently stores groups
-   only in component state.
-4. Add travel-goal storage. Completed with authenticated API persistence,
-   owner-only RLS, and Home screen integration.
-5. Expose Google Places recommendations because Discovery still uses mock
-   cards and a map placeholder.
+1. Connect the updated Preferences screen to `GET` and `PUT
+   /api/v1/me/preferences`; it currently uses temporary in-memory state.
+2. Keep signup/login, group CRUD, travel goals, Google discovery/routes, saved
+   places, and voting covered by frontend-to-backend integration tests.
+3. Implement persisted itinerary and itinerary-item operations for the
+   remaining Home/Discovery itinerary placeholders.
+4. Add route-result caching and Realtime updates without weakening RLS.
+5. Prepare hosted development configuration and repeatable deployment checks.
 
 Implement in this order:
 
@@ -181,9 +190,11 @@ previous item.
 
 1. Keep `/openapi.json` current.
 2. Give frontend developers example requests and responses.
-3. Provide mock endpoints before live Google keys are required.
-4. Agree on ISO 8601 timestamps and API error format.
-5. Test the complete flow using two real Supabase test accounts.
+3. Keep the [full local testing guide](full-stack-local-testing-guide.md)
+   synchronized with ports, environment variables, and startup commands.
+4. Provide mock endpoints before live Google keys are required.
+5. Agree on ISO 8601 timestamps and API error format.
+6. Test the complete flow using two real Supabase test accounts.
 
 ## 10. Definition of complete
 

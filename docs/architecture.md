@@ -1,5 +1,10 @@
 # Backend architecture
 
+Ramyl owns the complete FastAPI backend, Supabase database schema and security,
+and the server-side Google Places and Routes integrations. Frontend developers
+consume the documented API contract and should coordinate contract changes with
+Ramyl before changing request or response shapes.
+
 ```text
 React Native app
     -> Supabase Auth (sign in and token refresh)

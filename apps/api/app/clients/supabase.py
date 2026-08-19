@@ -490,9 +490,7 @@ class SupabaseClient:
             except ValueError:
                 error_payload = {}
             message = error_payload.get("message")
-            raise error_type(
-                str(message) if message else "Supabase Data API rejected the request"
-            )
+            raise error_type(str(message) if message else "Supabase Data API rejected the request")
         if response.is_error:
             raise SupabaseApiError("Supabase Data API rejected the request")
 
