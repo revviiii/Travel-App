@@ -157,6 +157,11 @@ for two selected itinerary places.
 
 ## 8. Add places, votes, and itinerary storage
 
+Current progress: `places`, `trip_places`, and `votes` are implemented with a
+stable Google Place ID, refreshed provider snapshot timestamp, duplicate-place
+prevention per trip, one vote per user/place, member RLS, authenticated APIs,
+and Discovery save/vote controls. Itinerary and route-cache storage remain.
+
 Add migrations for:
 
 ```text

@@ -14,6 +14,11 @@ TRIP_FIELDS = (
     "start_date,end_date,budget,status,created_at,updated_at"
 )
 TRAVEL_GOAL_FIELDS = "id,user_id,goal_text,created_at"
+TRIP_PLACE_FIELDS = "id,trip_id,place_id,suggested_by,created_at"
+PLACE_FIELDS = (
+    "id,google_place_id,name,address,latitude,longitude,primary_type,rating,"
+    "google_data_refreshed_at"
+)
 
 
 class SupabaseAuthenticationError(RuntimeError):
@@ -34,6 +39,10 @@ class SupabaseInvitationAuthorizationError(SupabaseApiError):
 
 class SupabaseInvalidInvitationError(SupabaseApiError):
     """Raised when an invitation cannot be accepted."""
+
+
+class SupabaseTripPlaceAuthorizationError(SupabaseApiError):
+    """Raised when a user cannot save a place to a trip."""
 
 
 class SupabaseClient:
@@ -215,6 +224,173 @@ class SupabaseClient:
         )
         if not rows:
             raise SupabaseResourceNotFoundError("Trip was not found")
+
+    async def list_trip_places(
+        self,
+        trip_id: UUID,
+        user_id: UUID,
+    ) -> list[Mapping[str, object]]:
+        trip_places = await self._request_rows(
+            "GET",
+            "/rest/v1/trip_places",
+            params={
+                "trip_id": f"eq.{trip_id}",
+                "select": TRIP_PLACE_FIELDS,
+                "order": "created_at.desc",
+            },
+        )
+        return await self._enrich_trip_places(trip_places, user_id)
+
+    async def get_trip_place(
+        self,
+        trip_id: UUID,
+        trip_place_id: UUID,
+        user_id: UUID,
+    ) -> Mapping[str, object]:
+        trip_places = await self._request_rows(
+            "GET",
+            "/rest/v1/trip_places",
+            params={
+                "id": f"eq.{trip_place_id}",
+                "trip_id": f"eq.{trip_id}",
+                "select": TRIP_PLACE_FIELDS,
+            },
+        )
+        if not trip_places:
+            raise SupabaseResourceNotFoundError("Saved place was not found")
+        return (await self._enrich_trip_places(trip_places, user_id))[0]
+
+    async def save_trip_place(
+        self,
+        trip_id: UUID,
+        user_id: UUID,
+        values: Mapping[str, object],
+    ) -> Mapping[str, object]:
+        location = values["location"]
+        if not isinstance(location, Mapping):
+            raise ValueError("Place location is required")
+
+        rows = await self._request_rows(
+            "POST",
+            "/rest/v1/rpc/save_trip_place",
+            json={
+                "target_trip_id": str(trip_id),
+                "new_google_place_id": values["google_place_id"],
+                "new_name": values["name"],
+                "new_address": values.get("address"),
+                "new_latitude": location["latitude"],
+                "new_longitude": location["longitude"],
+                "new_primary_type": values.get("primary_type"),
+                "new_rating": values.get("rating"),
+            },
+            allow_object=True,
+            error_type=SupabaseTripPlaceAuthorizationError,
+        )
+        if not rows:
+            raise SupabaseApiError("Place was not saved")
+        return await self.get_trip_place(trip_id, UUID(str(rows[0]["id"])), user_id)
+
+    async def delete_trip_place(self, trip_id: UUID, trip_place_id: UUID) -> None:
+        rows = await self._request_rows(
+            "DELETE",
+            "/rest/v1/trip_places",
+            params={
+                "id": f"eq.{trip_place_id}",
+                "trip_id": f"eq.{trip_id}",
+                "select": "id",
+            },
+            headers={"Prefer": "return=representation"},
+        )
+        if not rows:
+            raise SupabaseResourceNotFoundError("Saved place was not found")
+
+    async def add_trip_place_vote(
+        self,
+        trip_place_id: UUID,
+        user_id: UUID,
+    ) -> None:
+        await self._request_rows(
+            "POST",
+            "/rest/v1/votes",
+            params={"on_conflict": "trip_place_id,user_id", "select": "trip_place_id"},
+            json={"trip_place_id": str(trip_place_id), "user_id": str(user_id)},
+            headers={"Prefer": "resolution=ignore-duplicates,return=representation"},
+        )
+
+    async def remove_trip_place_vote(
+        self,
+        trip_place_id: UUID,
+        user_id: UUID,
+    ) -> None:
+        await self._request_rows(
+            "DELETE",
+            "/rest/v1/votes",
+            params={
+                "trip_place_id": f"eq.{trip_place_id}",
+                "user_id": f"eq.{user_id}",
+                "select": "trip_place_id",
+            },
+            headers={"Prefer": "return=representation"},
+        )
+
+    async def _enrich_trip_places(
+        self,
+        trip_places: list[Mapping[str, object]],
+        user_id: UUID,
+    ) -> list[Mapping[str, object]]:
+        if not trip_places:
+            return []
+
+        place_ids = [str(trip_place["place_id"]) for trip_place in trip_places]
+        trip_place_ids = [str(trip_place["id"]) for trip_place in trip_places]
+        places = await self._request_rows(
+            "GET",
+            "/rest/v1/places",
+            params={
+                "id": f"in.({','.join(place_ids)})",
+                "select": PLACE_FIELDS,
+            },
+        )
+        votes = await self._request_rows(
+            "GET",
+            "/rest/v1/votes",
+            params={
+                "trip_place_id": f"in.({','.join(trip_place_ids)})",
+                "select": "trip_place_id,user_id",
+            },
+        )
+
+        places_by_id = {str(place["id"]): place for place in places}
+        vote_counts: dict[str, int] = {trip_place_id: 0 for trip_place_id in trip_place_ids}
+        current_user_votes: set[str] = set()
+        for vote in votes:
+            trip_place_id = str(vote["trip_place_id"])
+            vote_counts[trip_place_id] = vote_counts.get(trip_place_id, 0) + 1
+            if str(vote["user_id"]) == str(user_id):
+                current_user_votes.add(trip_place_id)
+
+        enriched: list[Mapping[str, object]] = []
+        for trip_place in trip_places:
+            trip_place_id = str(trip_place["id"])
+            place = places_by_id[str(trip_place["place_id"])]
+            enriched.append(
+                dict(trip_place)
+                | {
+                    "google_place_id": place["google_place_id"],
+                    "name": place["name"],
+                    "address": place["address"],
+                    "location": {
+                        "latitude": place["latitude"],
+                        "longitude": place["longitude"],
+                    },
+                    "primary_type": place["primary_type"],
+                    "rating": place["rating"],
+                    "google_data_refreshed_at": place["google_data_refreshed_at"],
+                    "vote_count": vote_counts[trip_place_id],
+                    "current_user_voted": trip_place_id in current_user_votes,
+                }
+            )
+        return enriched
 
     async def create_trip_invitation(
         self,

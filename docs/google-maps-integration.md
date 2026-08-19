@@ -66,6 +66,10 @@ those fields move Nearby Search into Google's higher Enterprise SKU. The
 nullable `rating` property keeps the frontend contract forward-compatible with
 a future explicit details request.
 
+When a user saves a recommendation, the database keeps the stable Google Place
+ID plus the displayed snapshot and records `google_data_refreshed_at`. Re-saving
+the place refreshes that snapshot and does not duplicate it inside the trip.
+
 ## Routes and map polylines
 
 `POST /api/v1/maps/routes/compute` also requires a Supabase user bearer token.

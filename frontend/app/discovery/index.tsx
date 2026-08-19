@@ -1,7 +1,9 @@
 import { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
+  Alert,
   FlatList,
+  Modal,
   ScrollView,
   StyleSheet,
   Text,
@@ -18,9 +20,15 @@ import { PreferenceFilterChip } from '@/components/discovery/PreferenceFilterChi
 import { PlaceCard } from '@/components/discovery/PlaceCard';
 import {
   computeRoute,
+  getTripPlaces,
+  getTrips,
   type PlaceMarker,
   type PreferenceKey,
+  type SavedTripPlace,
+  type TripSummary,
+  savePlaceToTrip,
   searchNearbyPlaces,
+  setTripPlaceVote,
 } from '@/lib/api';
 import { decodeGooglePolyline } from '@/lib/polyline';
 
@@ -59,6 +67,12 @@ export default function DiscoveryScreen() {
   const [isLoading, setIsLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [reloadToken, setReloadToken] = useState(0);
+  const [trips, setTrips] = useState<TripSummary[]>([]);
+  const [selectedTripId, setSelectedTripId] = useState<string | null>(null);
+  const [savedPlaces, setSavedPlaces] = useState<SavedTripPlace[]>([]);
+  const [isLoadingSavedPlaces, setIsLoadingSavedPlaces] = useState(false);
+  const [placeToSave, setPlaceToSave] = useState<PlaceMarker | null>(null);
+  const [isSavingPlace, setIsSavingPlace] = useState(false);
 
   const filterQuery = Array.from(activeFilters).sort().join(',');
 
@@ -117,6 +131,68 @@ export default function DiscoveryScreen() {
     };
   }, [filterQuery, reloadToken]);
 
+  useEffect(() => {
+    let isCurrent = true;
+
+    async function loadTrips() {
+      try {
+        const availableTrips = await getTrips();
+        if (!isCurrent) {
+          return;
+        }
+        setTrips(availableTrips);
+        setSelectedTripId((current) => current ?? availableTrips[0]?.id ?? null);
+      } catch (error) {
+        if (isCurrent) {
+          Alert.alert(
+            'Unable to load groups',
+            error instanceof Error ? error.message : 'Please try again.',
+          );
+        }
+      }
+    }
+
+    void loadTrips();
+    return () => {
+      isCurrent = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    let isCurrent = true;
+
+    async function loadSavedPlaces() {
+      if (!selectedTripId) {
+        setSavedPlaces([]);
+        return;
+      }
+
+      setIsLoadingSavedPlaces(true);
+      try {
+        const saved = await getTripPlaces(selectedTripId);
+        if (isCurrent) {
+          setSavedPlaces(saved);
+        }
+      } catch (error) {
+        if (isCurrent) {
+          Alert.alert(
+            'Unable to load saved places',
+            error instanceof Error ? error.message : 'Please try again.',
+          );
+        }
+      } finally {
+        if (isCurrent) {
+          setIsLoadingSavedPlaces(false);
+        }
+      }
+    }
+
+    void loadSavedPlaces();
+    return () => {
+      isCurrent = false;
+    };
+  }, [selectedTripId]);
+
   const toggleFilter = (id: PreferenceKey) => {
     setActiveFilters((previous) => {
       const next = new Set(previous);
@@ -127,6 +203,58 @@ export default function DiscoveryScreen() {
       }
       return next;
     });
+  };
+
+  const openSavePicker = (place: PlaceMarker) => {
+    if (trips.length === 0) {
+      Alert.alert('Create a group first', 'Add a group on the Home screen before saving places.');
+      return;
+    }
+    setPlaceToSave(place);
+  };
+
+  const handleSavePlace = async (tripId: string) => {
+    if (!placeToSave) {
+      return;
+    }
+
+    setIsSavingPlace(true);
+    try {
+      await savePlaceToTrip(tripId, placeToSave);
+      setSelectedTripId(tripId);
+      setSavedPlaces(await getTripPlaces(tripId));
+      setPlaceToSave(null);
+      Alert.alert('Place saved', `${placeToSave.name} was added to the group.`);
+    } catch (error) {
+      Alert.alert(
+        'Unable to save place',
+        error instanceof Error ? error.message : 'Please try again.',
+      );
+    } finally {
+      setIsSavingPlace(false);
+    }
+  };
+
+  const handleToggleVote = async (place: SavedTripPlace) => {
+    if (!selectedTripId) {
+      return;
+    }
+
+    try {
+      const updated = await setTripPlaceVote(
+        selectedTripId,
+        place.id,
+        !place.current_user_voted,
+      );
+      setSavedPlaces((current) =>
+        current.map((item) => (item.id === updated.id ? updated : item)),
+      );
+    } catch (error) {
+      Alert.alert(
+        'Unable to update vote',
+        error instanceof Error ? error.message : 'Please try again.',
+      );
+    }
   };
 
   return (
@@ -252,6 +380,8 @@ export default function DiscoveryScreen() {
                   location={item.address ?? 'Address unavailable'}
                   rating={item.rating}
                   status="Live Google result"
+                  actionLabel={`Save ${item.name} to a group`}
+                  onActionPress={() => openSavePicker(item)}
                 />
               )}
               contentContainerStyle={styles.placeList}
@@ -265,11 +395,56 @@ export default function DiscoveryScreen() {
         )}
 
         {activeTab === 'itinerary' && (
-          <View style={styles.emptySection}>
-            <Text style={styles.emptyTitle}>No plans yet!</Text>
-            <Text style={styles.emptyDescription}>
-              The blue line currently previews a live route to the first recommendation.
-            </Text>
+          <View style={styles.savedPlacesContent}>
+            {trips.length > 0 && (
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={styles.tripChips}
+              >
+                {trips.map((trip) => (
+                  <PreferenceFilterChip
+                    key={trip.id}
+                    label={trip.name}
+                    active={trip.id === selectedTripId}
+                    onPress={() => setSelectedTripId(trip.id)}
+                  />
+                ))}
+              </ScrollView>
+            )}
+
+            {isLoadingSavedPlaces ? (
+              <View style={styles.emptySection}>
+                <ActivityIndicator color={AutumnColors.primary} />
+                <Text style={styles.emptyDescription}>Loading saved places...</Text>
+              </View>
+            ) : savedPlaces.length === 0 ? (
+              <View style={styles.emptySection}>
+                <Text style={styles.emptyTitle}>No saved places yet!</Text>
+                <Text style={styles.emptyDescription}>
+                  Save a recommendation, then vote on it with your group.
+                </Text>
+              </View>
+            ) : (
+              <FlatList
+                data={savedPlaces}
+                keyExtractor={(item) => item.id}
+                renderItem={({ item }) => (
+                  <PlaceCard
+                    category={formatPlaceType(item.primary_type)}
+                    name={item.name}
+                    location={item.address ?? 'Address unavailable'}
+                    rating={item.rating}
+                    status={`${item.vote_count} ${item.vote_count === 1 ? 'vote' : 'votes'}`}
+                    actionLabel={item.current_user_voted ? 'Remove vote' : 'Vote for place'}
+                    onActionPress={() => void handleToggleVote(item)}
+                  />
+                )}
+                contentContainerStyle={styles.placeList}
+                ItemSeparatorComponent={() => <View style={styles.placeSeparator} />}
+                showsVerticalScrollIndicator={false}
+              />
+            )}
           </View>
         )}
 
@@ -282,6 +457,43 @@ export default function DiscoveryScreen() {
           </View>
         )}
       </View>
+
+      <Modal
+        visible={placeToSave !== null}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setPlaceToSave(null)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalCard}>
+            <Text style={styles.modalTitle}>Save to a group</Text>
+            <Text style={styles.modalDescription} numberOfLines={2}>
+              {placeToSave?.name}
+            </Text>
+            <View style={styles.modalTripList}>
+              {trips.map((trip) => (
+                <TouchableOpacity
+                  key={trip.id}
+                  disabled={isSavingPlace}
+                  onPress={() => void handleSavePlace(trip.id)}
+                  style={styles.modalTripButton}
+                >
+                  <Text style={styles.modalTripText}>{trip.name}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+            <TouchableOpacity
+              disabled={isSavingPlace}
+              onPress={() => setPlaceToSave(null)}
+              style={styles.modalCancelButton}
+            >
+              <Text style={styles.modalCancelText}>
+                {isSavingPlace ? 'Saving...' : 'Cancel'}
+              </Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -407,6 +619,13 @@ const styles = StyleSheet.create({
   preferencesContent: {
     flex: 1,
   },
+  savedPlacesContent: {
+    flex: 1,
+  },
+  tripChips: {
+    gap: 8,
+    paddingBottom: 12,
+  },
   filterRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -441,5 +660,53 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     lineHeight: 18,
     paddingVertical: 12,
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.4)',
+    justifyContent: 'center',
+    paddingHorizontal: 28,
+  },
+  modalCard: {
+    borderRadius: 16,
+    backgroundColor: AutumnColors.background,
+    padding: 22,
+  },
+  modalTitle: {
+    color: AutumnColors.heading,
+    fontSize: 18,
+    fontWeight: '700',
+  },
+  modalDescription: {
+    color: AutumnColors.body,
+    fontSize: 13,
+    lineHeight: 18,
+    marginTop: 6,
+    marginBottom: 16,
+  },
+  modalTripList: {
+    gap: 10,
+  },
+  modalTripButton: {
+    borderRadius: 12,
+    backgroundColor: AutumnColors.primary,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+  },
+  modalTripText: {
+    color: '#FFFFFF',
+    fontSize: 14,
+    fontWeight: '600',
+    textAlign: 'center',
+  },
+  modalCancelButton: {
+    alignItems: 'center',
+    marginTop: 16,
+    paddingVertical: 8,
+  },
+  modalCancelText: {
+    color: AutumnColors.body,
+    fontSize: 13,
+    fontWeight: '600',
   },
 });

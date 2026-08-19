@@ -144,3 +144,29 @@ Creates a goal of up to 100 characters:
 
 Deletes only a goal owned by the authenticated user. A missing goal or one
 hidden by RLS returns `404`.
+
+## Saved trip places and voting
+
+### `POST /api/v1/trips/{trip_id}/places`
+
+Saves a normalized Google Places result to a trip. Re-saving the same
+`google_place_id` in one trip is idempotent and refreshes the stored Google
+snapshot without creating a duplicate suggestion.
+
+### `GET /api/v1/trips/{trip_id}/places`
+
+Returns saved suggestions with `vote_count` and `current_user_voted`.
+
+### `DELETE /api/v1/trips/{trip_id}/places/{trip_place_id}`
+
+The original suggester or a trip admin may remove a suggestion. Votes are
+removed automatically by database cascade.
+
+### `PUT /api/v1/trips/{trip_id}/places/{trip_place_id}/vote`
+
+Adds the authenticated member's vote idempotently.
+
+### `DELETE /api/v1/trips/{trip_id}/places/{trip_place_id}/vote`
+
+Removes the authenticated member's vote idempotently. The database primary key
+enforces at most one vote per user and saved place.

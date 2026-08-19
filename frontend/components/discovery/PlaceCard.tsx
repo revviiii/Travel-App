@@ -7,16 +7,24 @@ interface PlaceCardProps {
   location: string;
   rating: number | null;
   status: string;
+  actionLabel?: string;
+  onActionPress?: () => void;
 }
 
 /**
  * A recommendation/place card for the Discovery interface.
  * Displays a placeholder image, category badge, place name, location, rating, and status.
- * All data is mock — clearly marked for future API replacement.
- *
- * // TODO: Replace mock recommendations with backend/maps API data
+ * Supports an optional action for saving a live result or voting on a saved place.
  */
-export function PlaceCard({ category, name, location, rating, status }: PlaceCardProps) {
+export function PlaceCard({
+  category,
+  name,
+  location,
+  rating,
+  status,
+  actionLabel = 'View details',
+  onActionPress,
+}: PlaceCardProps) {
   return (
     <View style={styles.card}>
       {/* TODO: Replace with actual place image from API */}
@@ -43,9 +51,11 @@ export function PlaceCard({ category, name, location, rating, status }: PlaceCar
 
       {/* TODO: Replace with final Figma link/share SVG icon */}
       <TouchableOpacity
+        disabled={!onActionPress}
+        onPress={onActionPress}
         style={styles.linkButton}
         accessibilityRole="button"
-        accessibilityLabel="View details"
+        accessibilityLabel={actionLabel}
       >
         <View style={styles.linkIconPlaceholder} />
       </TouchableOpacity>
