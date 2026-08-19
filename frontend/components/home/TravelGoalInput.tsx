@@ -5,7 +5,7 @@ import { AutumnColors } from '@/constants/colors';
 const MAX_CHARACTERS = 100;
 
 interface TravelGoalInputProps {
-  onAdd: (goal: string) => void;
+  onAdd: (goal: string) => void | Promise<void>;
 }
 
 /**
@@ -14,14 +14,22 @@ interface TravelGoalInputProps {
  */
 export function TravelGoalInput({ onAdd }: TravelGoalInputProps) {
   const [value, setValue] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const trimmed = value.trim();
-  const canSubmit = trimmed.length > 0;
+  const canSubmit = trimmed.length > 0 && !isSubmitting;
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     if (canSubmit) {
-      onAdd(trimmed);
-      setValue('');
+      setIsSubmitting(true);
+      try {
+        await onAdd(trimmed);
+        setValue('');
+      } catch {
+        // The parent displays the API error and the input stays available for retry.
+      } finally {
+        setIsSubmitting(false);
+      }
     }
   };
 

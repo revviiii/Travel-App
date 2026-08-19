@@ -21,7 +21,16 @@ import { GroupCard } from '@/components/home/GroupCard';
 import { CreateGroupModal } from '@/components/home/CreateGroupModal';
 import { TravelGoalCard } from '@/components/home/TravelGoalCard';
 import { TravelGoalInput } from '@/components/home/TravelGoalInput';
-import { createTrip, deleteTrip, getTrips, TripSummary } from '@/lib/api';
+import {
+  createTravelGoal,
+  createTrip,
+  deleteTravelGoal,
+  deleteTrip,
+  getTravelGoals,
+  getTrips,
+  TravelGoal,
+  TripSummary,
+} from '@/lib/api';
 
 const settingsIcon = require('@/assets/images/settings_ic.svg');
 
@@ -66,8 +75,10 @@ export default function HomeScreen() {
   const [groupToDelete, setGroupToDelete] = useState<string | null>(null);
 
   // Goals state
-  const [goals, setGoals] = useState<string[]>([]);
-  const [goalToDelete, setGoalToDelete] = useState<number | null>(null);
+  const [goals, setGoals] = useState<TravelGoal[]>([]);
+  const [isLoadingGoals, setIsLoadingGoals] = useState(true);
+  const [goalError, setGoalError] = useState<string | null>(null);
+  const [goalToDelete, setGoalToDelete] = useState<string | null>(null);
 
   // TODO: Replace with authenticated user's profile name
   const userName = 'Traveler';
@@ -95,10 +106,6 @@ export default function HomeScreen() {
       setIsLoadingGroups(false);
     }
   }, []);
-
-  useEffect(() => {
-    void loadGroups();
-  }, [loadGroups]);
 
   const handleCreateGroup = useCallback(async (name: string) => {
     try {
@@ -137,20 +144,52 @@ export default function HomeScreen() {
   }, []);
 
   // --- Goals ---
-  const handleAddGoal = useCallback((goal: string) => {
-    // TODO: Persist travel goals when backend integration is implemented
-    setGoals((prev) => [...prev, goal]);
+  const loadGoals = useCallback(async () => {
+    setIsLoadingGoals(true);
+    setGoalError(null);
+    try {
+      setGoals(await getTravelGoals());
+    } catch (error) {
+      setGoalError(error instanceof Error ? error.message : 'Unable to load goals.');
+    } finally {
+      setIsLoadingGoals(false);
+    }
   }, []);
 
-  const handleLongPressGoal = useCallback((index: number) => {
-    setGoalToDelete(index);
+  useEffect(() => {
+    void loadGroups();
+    void loadGoals();
+  }, [loadGoals, loadGroups]);
+
+  const handleAddGoal = useCallback(async (goalText: string) => {
+    try {
+      const goal = await createTravelGoal(goalText);
+      setGoals((prev) => [goal, ...prev]);
+    } catch (error) {
+      Alert.alert(
+        'Unable to add goal',
+        error instanceof Error ? error.message : 'Please try again.',
+      );
+      throw error;
+    }
   }, []);
 
-  const handleConfirmDelete = useCallback(() => {
+  const handleLongPressGoal = useCallback((id: string) => {
+    setGoalToDelete(id);
+  }, []);
+
+  const handleConfirmDelete = useCallback(async () => {
     if (goalToDelete !== null) {
-      // TODO: Delete persisted goal through backend when integration is implemented
-      setGoals((prev) => prev.filter((_, i) => i !== goalToDelete));
-      setGoalToDelete(null);
+      try {
+        await deleteTravelGoal(goalToDelete);
+        setGoals((prev) => prev.filter((goal) => goal.id !== goalToDelete));
+        setGoalToDelete(null);
+      } catch (error) {
+        Alert.alert(
+          'Unable to delete goal',
+          error instanceof Error ? error.message : 'Please try again.',
+        );
+      }
     }
   }, [goalToDelete]);
 
@@ -178,8 +217,11 @@ export default function HomeScreen() {
   );
 
   const renderGoalItem = useCallback(
-    ({ item, index }: { item: string; index: number }) => (
-      <TravelGoalCard text={item} onLongPress={() => handleLongPressGoal(index)} />
+    ({ item }: { item: TravelGoal }) => (
+      <TravelGoalCard
+        text={item.goal_text}
+        onLongPress={() => handleLongPressGoal(item.id)}
+      />
     ),
     [handleLongPressGoal],
   );
@@ -276,7 +318,24 @@ export default function HomeScreen() {
             <TravelGoalInput onAdd={handleAddGoal} />
 
             {/* Goal list or empty state */}
-            {goals.length === 0 ? (
+            {isLoadingGoals ? (
+              <View style={styles.groupStatus}>
+                <ActivityIndicator color={AutumnColors.primary} />
+                <Text style={styles.groupStatusText}>Loading goals...</Text>
+              </View>
+            ) : goalError ? (
+              <View style={styles.groupStatus}>
+                <Text style={styles.groupErrorText}>{goalError}</Text>
+                <TouchableOpacity
+                  accessibilityRole="button"
+                  accessibilityLabel="Retry loading goals"
+                  onPress={() => void loadGoals()}
+                  style={styles.retryButton}
+                >
+                  <Text style={styles.retryButtonText}>Retry</Text>
+                </TouchableOpacity>
+              </View>
+            ) : goals.length === 0 ? (
               <EmptyState
                 title="No travel goals yet!"
                 description="Add a goal for your next adventure."
@@ -284,7 +343,7 @@ export default function HomeScreen() {
             ) : (
               <FlatList
                 data={goals}
-                keyExtractor={(_, index) => index.toString()}
+                keyExtractor={(goal) => goal.id}
                 renderItem={renderGoalItem}
                 contentContainerStyle={styles.goalsList}
                 showsVerticalScrollIndicator={false}

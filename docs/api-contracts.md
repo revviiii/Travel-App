@@ -123,3 +123,24 @@ share it only with intended group members.
 Atomically adds the authenticated user as a trip member and returns the joined
 trip. Acceptance is idempotent for an existing member. Invalid, expired,
 inactive, and exhausted tokens all return the same safe `400` response.
+
+## Travel goals
+
+### `GET /api/v1/me/goals`
+
+Returns the authenticated user's goals, newest first.
+
+### `POST /api/v1/me/goals`
+
+Creates a goal of up to 100 characters:
+
+```json
+{
+  "goal_text": "Visit three museums"
+}
+```
+
+### `DELETE /api/v1/me/goals/{goal_id}`
+
+Deletes only a goal owned by the authenticated user. A missing goal or one
+hidden by RLS returns `404`.

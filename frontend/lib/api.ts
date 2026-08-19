@@ -55,6 +55,13 @@ export type TripSummary = {
   status: 'planning' | 'active' | 'completed' | 'cancelled';
 };
 
+export type TravelGoal = {
+  id: string;
+  user_id: string;
+  goal_text: string;
+  created_at: string;
+};
+
 type RequestOptions = {
   method?: 'GET' | 'POST' | 'DELETE';
   body?: object;
@@ -141,4 +148,22 @@ export function deleteTrip(tripId: string): Promise<void> {
   return authenticatedRequest(`/api/v1/trips/${encodeURIComponent(tripId)}`, {
     method: 'DELETE',
   });
+}
+
+export function getTravelGoals(): Promise<TravelGoal[]> {
+  return authenticatedRequest('/api/v1/me/goals');
+}
+
+export function createTravelGoal(goalText: string): Promise<TravelGoal> {
+  return authenticatedRequest('/api/v1/me/goals', {
+    method: 'POST',
+    body: { goal_text: goalText },
+  });
+}
+
+export function deleteTravelGoal(goalId: string): Promise<void> {
+  return authenticatedRequest(
+    `/api/v1/me/goals/${encodeURIComponent(goalId)}`,
+    { method: 'DELETE' },
+  );
 }

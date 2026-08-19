@@ -13,6 +13,7 @@ TRIP_FIELDS = (
     "id,owner_id,name,destination_name,destination_latitude,destination_longitude,"
     "start_date,end_date,budget,status,created_at,updated_at"
 )
+TRAVEL_GOAL_FIELDS = "id,user_id,goal_text,created_at"
 
 
 class SupabaseAuthenticationError(RuntimeError):
@@ -119,6 +120,43 @@ class SupabaseClient:
             json={"new_preference_keys": preference_keys},
         )
         return [str(row["preference_key"]) for row in rows]
+
+    async def list_travel_goals(self, user_id: UUID) -> list[Mapping[str, object]]:
+        return await self._request_rows(
+            "GET",
+            "/rest/v1/travel_goals",
+            params={
+                "user_id": f"eq.{user_id}",
+                "select": TRAVEL_GOAL_FIELDS,
+                "order": "created_at.desc",
+            },
+        )
+
+    async def create_travel_goal(
+        self,
+        user_id: UUID,
+        goal_text: str,
+    ) -> Mapping[str, object]:
+        rows = await self._request_rows(
+            "POST",
+            "/rest/v1/travel_goals",
+            params={"select": TRAVEL_GOAL_FIELDS},
+            json={"user_id": str(user_id), "goal_text": goal_text},
+            headers={"Prefer": "return=representation"},
+        )
+        if not rows:
+            raise SupabaseApiError("Travel goal was not created")
+        return rows[0]
+
+    async def delete_travel_goal(self, goal_id: UUID) -> None:
+        rows = await self._request_rows(
+            "DELETE",
+            "/rest/v1/travel_goals",
+            params={"id": f"eq.{goal_id}", "select": "id"},
+            headers={"Prefer": "return=representation"},
+        )
+        if not rows:
+            raise SupabaseResourceNotFoundError("Travel goal was not found")
 
     async def create_trip(
         self,

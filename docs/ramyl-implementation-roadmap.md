@@ -56,7 +56,8 @@ Current progress: Supabase access-token validation, `GET /api/v1/me`,
 `PUT /api/v1/me/preferences` are implemented with mocked tests. Authenticated
 trip creation, listing, detail, member listing, owner deletion, invitation
 creation, and invitation acceptance are also implemented and locally verified
-with two users.
+with two users. Per-user travel-goal create, list, and delete operations are
+implemented with owner-only RLS and connected to the Home screen.
 
 Priority after the August 19 frontend update:
 
@@ -66,8 +67,8 @@ Priority after the August 19 frontend update:
    login, signup, and preference actions with Supabase Auth plus these APIs.
 3. Implement trip/group CRUD because the Home screen currently stores groups
    only in component state.
-4. Add travel-goal storage because the Home screen currently stores goals only
-   in component state.
+4. Add travel-goal storage. Completed with authenticated API persistence,
+   owner-only RLS, and Home screen integration.
 5. Expose Google Places recommendations because Discovery still uses mock
    cards and a map placeholder.
 
