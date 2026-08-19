@@ -64,6 +64,6 @@ const styles = StyleSheet.create({
     color: AutumnColors.chipText,
   },
   labelActive: {
-    color: '#FFFFFF',
+    color: AutumnColors.selectedTabText,
   },
 });

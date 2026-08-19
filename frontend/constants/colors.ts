@@ -60,4 +60,10 @@ export const AutumnColors = {
   autumnAccent: '#D87527',
   /** Warm golden amber — golden accent */
   goldenAccent: '#D89B42',
+  /** Discovery filter chip active background — warm yellow */
+  filterChipBackground: '#EBE58A',
+  /** Discovery filter chip active text — warm brown */
+  filterChipText: '#974E2A',
+  /** Selected navigation tab text — pale lime */
+  selectedTabText: '#F8FBCB',
 } as const;

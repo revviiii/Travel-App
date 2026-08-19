@@ -1,6 +1,7 @@
-import { useState } from 'react';
+import { useState, useMemo, useCallback } from 'react';
 import {
   FlatList,
+  Modal,
   ScrollView,
   StyleSheet,
   Text,
@@ -11,38 +12,39 @@ import {
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { AutumnColors } from '@/constants/colors';
+import { PREFERENCE_CATEGORIES } from '@/constants/preferences';
+import { usePreferences } from '@/contexts/PreferenceContext';
+import { useSoloGoals, type SoloGoal } from '@/contexts/SoloGoalsContext';
 import { PlannerTab } from '@/components/home/PlannerTab';
+import { EmptyState } from '@/components/home/EmptyState';
+import { TravelGoalCard } from '@/components/home/TravelGoalCard';
+import { TravelGoalInput } from '@/components/home/TravelGoalInput';
 import { PreferenceFilterChip } from '@/components/discovery/PreferenceFilterChip';
 import { PlaceCard } from '@/components/discovery/PlaceCard';
+import { DiscoveryBottomSheet } from '@/components/discovery/DiscoveryBottomSheet';
+import { DiscoveryFilterPanel } from '@/components/discovery/DiscoveryFilterPanel';
 
 type DiscoverySection = 'preferences' | 'itinerary' | 'goals';
 
 /**
- * Mock preference filter data.
- * TODO: Replace with persisted user preferences from the Preferences screen / backend.
- */
-const MOCK_FILTERS = [
-  { id: 'adventure', label: 'Adventure Travel' },
-  { id: 'historical', label: 'Historical Sites' },
-  { id: 'cafe', label: 'Cafe' },
-] as const;
-
-/**
  * Mock place/recommendation data for layout testing.
- * TODO: Replace mock recommendations with backend/maps API data.
+ * Each place has a categoryId that maps to a preference ID for prototype filtering.
+ * TODO: Replace mock recommendations with recommendation/maps API response.
  */
 const MOCK_PLACES = [
   {
     id: '1',
-    category: 'Adventure Travel',
+    categoryId: 'culture',
+    category: 'Cultural & Heritage',
     name: 'Uffizi Gallery',
-    location: 'Location',
+    location: 'Location Details',
     rating: 4.7,
     status: 'Open \u00B7 Mon-Thu: 10:00 AM\u20139:00 PM',
   },
   {
     id: '2',
-    category: 'Historical Sites',
+    categoryId: 'outdoors',
+    category: 'Outdoors',
     name: 'Name',
     location: 'Location',
     rating: 4.7,
@@ -50,7 +52,8 @@ const MOCK_PLACES = [
   },
   {
     id: '3',
-    category: 'Cafe',
+    categoryId: 'food',
+    category: 'Food & Culinary',
     name: 'Name',
     location: 'Location',
     rating: 4.7,
@@ -62,21 +65,95 @@ export default function DiscoveryScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { destination } = useLocalSearchParams<{ destination?: string }>();
+  const { selectedPreferences } = usePreferences();
 
   const [activeTab, setActiveTab] = useState<DiscoverySection>('preferences');
-  const [activeFilters, setActiveFilters] = useState<Set<string>>(new Set(['adventure']));
+  const [showFilterPanel, setShowFilterPanel] = useState(false);
+
+  // Active Discovery filters — initialized from user preferences but independent.
+  // Toggling these does NOT modify the user's actual preference profile.
+  // Using an array to preserve selection order for display ordering.
+  const [activeFilterOrder, setActiveFilterOrder] = useState<string[]>(
+    () => Array.from(selectedPreferences),
+  );
+
+  // Set view for O(1) lookup
+  const activeFilters = useMemo(() => new Set(activeFilterOrder), [activeFilterOrder]);
 
   const toggleFilter = (id: string) => {
-    setActiveFilters((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) {
-        next.delete(id);
-      } else {
-        next.add(id);
+    setActiveFilterOrder((prev) => {
+      if (prev.includes(id)) {
+        // Deselect — remove from order
+        return prev.filter((x) => x !== id);
+      } else if (prev.length < 4) {
+        // Select — append to end (preserves selection order)
+        return [...prev, id];
       }
-      return next;
+      // At max (4) and trying to add → no-op
+      return prev;
     });
   };
+
+  // Ordered category list: active filters first (in selection order), then inactive in original order
+  const orderedCategories = useMemo(() => {
+    const activeSet = new Set(activeFilterOrder);
+    const active = activeFilterOrder
+      .map((id) => PREFERENCE_CATEGORIES.find((c) => c.id === id))
+      .filter(Boolean) as typeof PREFERENCE_CATEGORIES;
+    const inactive = PREFERENCE_CATEGORIES.filter((c) => !activeSet.has(c.id));
+    return [...active, ...inactive];
+  }, [activeFilterOrder]);
+
+  // Filter panel handlers
+  const handleOpenFilterPanel = useCallback(() => {
+    setShowFilterPanel(true);
+  }, []);
+
+  const handleApplyFilters = useCallback((filters: Set<string>) => {
+    setActiveFilterOrder(Array.from(filters));
+    setShowFilterPanel(false);
+  }, []);
+
+  const handleCancelFilterPanel = useCallback(() => {
+    setShowFilterPanel(false);
+  }, []);
+
+  // TODO: Replace local mock filtering with recommendation API filtering
+  // TODO: Fetch recommendations using destination and active Discovery filters
+  const filteredPlaces = useMemo(() => {
+    if (activeFilters.size === 0) return MOCK_PLACES;
+    return MOCK_PLACES.filter((place) => activeFilters.has(place.categoryId));
+  }, [activeFilters]);
+
+  // --- Solo Goals (shared with Home) ---
+  const { goals, addGoal, removeGoal } = useSoloGoals();
+  const [goalToDelete, setGoalToDelete] = useState<string | null>(null);
+
+  const handleAddGoal = useCallback((text: string) => {
+    addGoal(text);
+  }, [addGoal]);
+
+  const handleLongPressGoal = useCallback((id: string) => {
+    setGoalToDelete(id);
+  }, []);
+
+  const handleConfirmDeleteGoal = useCallback(() => {
+    if (goalToDelete !== null) {
+      removeGoal(goalToDelete);
+      setGoalToDelete(null);
+    }
+  }, [goalToDelete, removeGoal]);
+
+  const handleCancelDeleteGoal = useCallback(() => {
+    setGoalToDelete(null);
+  }, []);
+
+  const renderGoalItem = useCallback(
+    ({ item }: { item: SoloGoal }) => (
+      <TravelGoalCard text={item.text} onLongPress={() => handleLongPressGoal(item.id)} />
+    ),
+    [handleLongPressGoal],
+  );
 
   const handleBack = () => {
     router.back();
@@ -88,7 +165,7 @@ export default function DiscoveryScreen() {
       {/* TODO: Replace with real interactive map */}
       <View style={[styles.mapArea, { paddingTop: insets.top + 12 }]}>
         {/* Back button + search bar overlaid on map */}
-        <View style={styles.mapOverlay}>
+        <View style={[styles.mapOverlay, { top: insets.top + 12 }]}>
           <TouchableOpacity
             onPress={handleBack}
             accessibilityRole="button"
@@ -100,7 +177,7 @@ export default function DiscoveryScreen() {
           </TouchableOpacity>
 
           <View style={styles.searchPill}>
-            {/* TODO: Connect destination search to Places/Maps API */}
+            {/* TODO: Resolve destination using Maps/Places API */}
             <TextInput
               style={styles.searchInput}
               value={destination ?? ''}
@@ -115,8 +192,8 @@ export default function DiscoveryScreen() {
         <Text style={styles.mapPlaceholderText}>MAP PLACEHOLDER</Text>
       </View>
 
-      {/* Bottom panel */}
-      <View style={[styles.bottomPanel, { paddingBottom: insets.bottom + 16 }]}>
+      {/* Draggable bottom sheet */}
+      <DiscoveryBottomSheet>
         {/* Discovery navigation tabs */}
         <View style={styles.tabRow}>
           <PlannerTab
@@ -139,22 +216,31 @@ export default function DiscoveryScreen() {
         {/* Content based on active tab */}
         {activeTab === 'preferences' && (
           <View style={styles.preferencesContent}>
-            {/* Filter row */}
+            {/* Filter row — button + all category chips (horizontally scrollable) */}
             <View style={styles.filterRow}>
-              {/* TODO: Replace with final Figma filter SVG */}
-              <View style={styles.filterIconPlaceholder} />
+              {/* Filter button */}
+              <TouchableOpacity
+                onPress={handleOpenFilterPanel}
+                accessibilityRole="button"
+                accessibilityLabel="Open filter selection"
+                style={styles.filterButton}
+              >
+                {/* TODO: Replace with final Figma filter SVG icon */}
+                <View style={styles.filterIconPlaceholder} />
+              </TouchableOpacity>
 
               <ScrollView
                 horizontal
                 showsHorizontalScrollIndicator={false}
                 contentContainerStyle={styles.filterChips}
+                nestedScrollEnabled
               >
-                {MOCK_FILTERS.map((filter) => (
+                {orderedCategories.map((cat) => (
                   <PreferenceFilterChip
-                    key={filter.id}
-                    label={filter.label}
-                    active={activeFilters.has(filter.id)}
-                    onPress={() => toggleFilter(filter.id)}
+                    key={cat.id}
+                    label={cat.label}
+                    active={activeFilters.has(cat.id)}
+                    onPress={() => toggleFilter(cat.id)}
                   />
                 ))}
               </ScrollView>
@@ -162,7 +248,7 @@ export default function DiscoveryScreen() {
 
             {/* Place cards */}
             <FlatList
-              data={MOCK_PLACES}
+              data={filteredPlaces}
               keyExtractor={(item) => item.id}
               renderItem={({ item }) => (
                 <PlaceCard
@@ -175,29 +261,96 @@ export default function DiscoveryScreen() {
               )}
               contentContainerStyle={styles.placeList}
               showsVerticalScrollIndicator={false}
+              nestedScrollEnabled
               ItemSeparatorComponent={() => <View style={styles.placeSeparator} />}
+              ListEmptyComponent={
+                <View style={styles.emptySection}>
+                  <Text style={styles.emptyTitle}>No matches</Text>
+                  <Text style={styles.emptyDescription}>
+                    Try adjusting your filters to see more places.
+                  </Text>
+                </View>
+              }
             />
           </View>
         )}
 
         {activeTab === 'itinerary' && (
           <View style={styles.emptySection}>
+            {/* TODO: Connect Discovery itinerary to persisted itinerary data */}
             <Text style={styles.emptyTitle}>No plans yet!</Text>
             <Text style={styles.emptyDescription}>
-              Start exploring destinations and add places to your itinerary.
+              Save places to start building your trip.
             </Text>
           </View>
         )}
 
         {activeTab === 'goals' && (
-          <View style={styles.emptySection}>
-            <Text style={styles.emptyTitle}>No travel goals yet!</Text>
-            <Text style={styles.emptyDescription}>
-              Add a goal for your next adventure.
-            </Text>
+          <View style={styles.goalsContainer}>
+            <TravelGoalInput onAdd={handleAddGoal} />
+
+            {goals.length === 0 ? (
+              <EmptyState
+                title="No travel goals yet!"
+                description="Add a goal for your next adventure."
+              />
+            ) : (
+              <FlatList
+                data={goals}
+                keyExtractor={(item) => item.id}
+                renderItem={renderGoalItem}
+                contentContainerStyle={styles.goalsList}
+                showsVerticalScrollIndicator={false}
+                nestedScrollEnabled
+                ItemSeparatorComponent={() => <View style={styles.goalSeparator} />}
+              />
+            )}
           </View>
         )}
-      </View>
+      </DiscoveryBottomSheet>
+
+      {/* Discovery Filter Panel Modal */}
+      <DiscoveryFilterPanel
+        visible={showFilterPanel}
+        currentFilters={activeFilters}
+        onApply={handleApplyFilters}
+        onCancel={handleCancelFilterPanel}
+      />
+
+      {/* Clear Goal Confirmation Modal */}
+      <Modal
+        visible={goalToDelete !== null}
+        transparent
+        animationType="fade"
+        onRequestClose={handleCancelDeleteGoal}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalCard}>
+            <Text style={styles.modalTitle}>Clear this goal?</Text>
+            <Text style={styles.modalDescription}>
+              This will remove the selected travel goal.
+            </Text>
+            <View style={styles.modalActions}>
+              <TouchableOpacity
+                onPress={handleCancelDeleteGoal}
+                accessibilityRole="button"
+                accessibilityLabel="Cancel"
+                style={styles.modalCancelButton}
+              >
+                <Text style={styles.modalCancelText}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                onPress={handleConfirmDeleteGoal}
+                accessibilityRole="button"
+                accessibilityLabel="Clear Goal"
+                style={styles.modalClearButton}
+              >
+                <Text style={styles.modalClearText}>Clear Goal</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -211,17 +364,14 @@ const styles = StyleSheet.create({
   /* Map area */
   mapArea: {
     flex: 1,
-    minHeight: '45%',
     backgroundColor: '#3A5A40',
     justifyContent: 'center',
     alignItems: 'center',
   },
   mapOverlay: {
     position: 'absolute',
-    top: 0,
     left: 0,
     right: 0,
-    paddingTop: 56,
     paddingHorizontal: 16,
     flexDirection: 'row',
     alignItems: 'center',
@@ -261,16 +411,6 @@ const styles = StyleSheet.create({
     color: 'rgba(255,255,255,0.6)',
   },
 
-  /* Bottom panel */
-  bottomPanel: {
-    backgroundColor: AutumnColors.background,
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
-    paddingTop: 20,
-    paddingHorizontal: 16,
-    maxHeight: '55%',
-  },
-
   /* Tabs */
   tabRow: {
     flexDirection: 'row',
@@ -281,7 +421,7 @@ const styles = StyleSheet.create({
 
   /* Preferences content */
   preferencesContent: {
-    flex: 1,
+    flexShrink: 1,
   },
   filterRow: {
     flexDirection: 'row',
@@ -289,17 +429,28 @@ const styles = StyleSheet.create({
     gap: 8,
     marginBottom: 14,
   },
+  filterButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: AutumnColors.chipBackground,
+    borderWidth: 1,
+    borderColor: AutumnColors.chipBorder,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   filterIconPlaceholder: {
-    width: 20,
-    height: 20,
+    width: 16,
+    height: 16,
     borderRadius: 4,
     backgroundColor: AutumnColors.chipBorder,
   },
   filterChips: {
-    gap: 8,
+    gap: 10,
+    paddingRight: 8,
   },
   placeList: {
-    paddingBottom: 8,
+    paddingBottom: 4,
   },
   placeSeparator: {
     height: 10,
@@ -307,10 +458,10 @@ const styles = StyleSheet.create({
 
   /* Empty sections */
   emptySection: {
-    flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: 24,
+    paddingVertical: 24,
   },
   emptyTitle: {
     fontSize: 16,
@@ -325,5 +476,73 @@ const styles = StyleSheet.create({
     color: AutumnColors.body,
     textAlign: 'center',
     lineHeight: 18,
+  },
+
+  /* Goals */
+  goalsContainer: {
+    flexShrink: 1,
+  },
+  goalsList: {
+    paddingBottom: 16,
+  },
+  goalSeparator: {
+    height: 10,
+  },
+
+  /* Modal — Clear Goal */
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.4)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 32,
+  },
+  modalCard: {
+    width: '100%',
+    backgroundColor: AutumnColors.background,
+    borderRadius: 16,
+    padding: 24,
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: AutumnColors.heading,
+    marginBottom: 8,
+  },
+  modalDescription: {
+    fontSize: 14,
+    fontWeight: '400',
+    color: AutumnColors.body,
+    lineHeight: 20,
+    marginBottom: 24,
+  },
+  modalActions: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    gap: 12,
+  },
+  modalCancelButton: {
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 8,
+    backgroundColor: AutumnColors.chipBackground,
+    borderWidth: 1,
+    borderColor: AutumnColors.chipBorder,
+  },
+  modalCancelText: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: AutumnColors.chipText,
+  },
+  modalClearButton: {
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 8,
+    backgroundColor: AutumnColors.primary,
+  },
+  modalClearText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#FFFFFF',
   },
 });

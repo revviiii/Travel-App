@@ -18,6 +18,7 @@ import { GroupCard } from '@/components/home/GroupCard';
 import { CreateGroupModal } from '@/components/home/CreateGroupModal';
 import { TravelGoalCard } from '@/components/home/TravelGoalCard';
 import { TravelGoalInput } from '@/components/home/TravelGoalInput';
+import { useSoloGoals, type SoloGoal } from '@/contexts/SoloGoalsContext';
 
 const settingsIcon = require('@/assets/images/settings_ic.svg');
 
@@ -48,9 +49,9 @@ export default function HomeScreen() {
   const [showCreateGroup, setShowCreateGroup] = useState(false);
   const [groupToDelete, setGroupToDelete] = useState<string | null>(null);
 
-  // Goals state
-  const [goals, setGoals] = useState<string[]>([]);
-  const [goalToDelete, setGoalToDelete] = useState<number | null>(null);
+  // Solo Goals — shared state via Context
+  const { goals, addGoal, removeGoal } = useSoloGoals();
+  const [goalToDelete, setGoalToDelete] = useState<string | null>(null);
 
   // TODO: Replace with authenticated user's profile name
   const userName = 'Traveler';
@@ -92,22 +93,20 @@ export default function HomeScreen() {
   }, []);
 
   // --- Goals ---
-  const handleAddGoal = useCallback((goal: string) => {
-    // TODO: Persist travel goals when backend integration is implemented
-    setGoals((prev) => [...prev, goal]);
-  }, []);
+  const handleAddGoal = useCallback((text: string) => {
+    addGoal(text);
+  }, [addGoal]);
 
-  const handleLongPressGoal = useCallback((index: number) => {
-    setGoalToDelete(index);
+  const handleLongPressGoal = useCallback((id: string) => {
+    setGoalToDelete(id);
   }, []);
 
   const handleConfirmDelete = useCallback(() => {
     if (goalToDelete !== null) {
-      // TODO: Delete persisted goal through backend when integration is implemented
-      setGoals((prev) => prev.filter((_, i) => i !== goalToDelete));
+      removeGoal(goalToDelete);
       setGoalToDelete(null);
     }
-  }, [goalToDelete]);
+  }, [goalToDelete, removeGoal]);
 
   const handleCancelDelete = useCallback(() => {
     setGoalToDelete(null);
@@ -129,8 +128,8 @@ export default function HomeScreen() {
   );
 
   const renderGoalItem = useCallback(
-    ({ item, index }: { item: string; index: number }) => (
-      <TravelGoalCard text={item} onLongPress={() => handleLongPressGoal(index)} />
+    ({ item }: { item: SoloGoal }) => (
+      <TravelGoalCard text={item.text} onLongPress={() => handleLongPressGoal(item.id)} />
     ),
     [handleLongPressGoal],
   );
@@ -212,7 +211,7 @@ export default function HomeScreen() {
             ) : (
               <FlatList
                 data={goals}
-                keyExtractor={(_, index) => index.toString()}
+                keyExtractor={(item) => item.id}
                 renderItem={renderGoalItem}
                 contentContainerStyle={styles.goalsList}
                 showsVerticalScrollIndicator={false}
