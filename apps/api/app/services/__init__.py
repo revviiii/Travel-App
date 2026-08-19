@@ -1,1 +1,1 @@
-"""Business services for normalized API responses."""
+"""Backend business services."""

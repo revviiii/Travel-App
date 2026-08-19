@@ -54,6 +54,15 @@ async def save_trip_place(
     supabase: Annotated[SupabaseClient, Depends(get_supabase_client)],
 ) -> TripPlaceResponse:
     try:
+        trip = await supabase.get_trip(trip_id, user.id)
+        if not new_place.voting_enabled and trip["current_user_role"] not in {
+            "owner",
+            "admin",
+        }:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Only trip owners and admins can disable group voting",
+            )
         place = await supabase.save_trip_place(
             trip_id,
             user.id,
@@ -62,7 +71,12 @@ async def save_trip_place(
     except SupabaseTripPlaceAuthorizationError as exc:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Only trip members can save places",
+            detail=str(exc),
+        ) from exc
+    except SupabaseResourceNotFoundError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Trip was not found",
         ) from exc
     except SupabaseApiError as exc:
         raise_supabase_api_error(exc)
@@ -93,7 +107,12 @@ async def add_trip_place_vote(
     supabase: Annotated[SupabaseClient, Depends(get_supabase_client)],
 ) -> TripPlaceResponse:
     try:
-        await supabase.get_trip_place(trip_id, trip_place_id, user.id)
+        existing_place = await supabase.get_trip_place(trip_id, trip_place_id, user.id)
+        if not existing_place["voting_enabled"]:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="Group voting is disabled for this place",
+            )
         await supabase.add_trip_place_vote(trip_place_id, user.id)
         place = await supabase.get_trip_place(trip_id, trip_place_id, user.id)
     except SupabaseResourceNotFoundError as exc:

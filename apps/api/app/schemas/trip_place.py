@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import date, datetime, time
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -15,6 +15,10 @@ class TripPlaceCreate(BaseModel):
     location: Coordinates
     primary_type: str | None = Field(default=None, max_length=100)
     rating: float | None = Field(default=None, ge=0, le=5)
+    scheduled_date: date
+    scheduled_time: time
+    duration_minutes: int = Field(default=120, ge=15, le=720)
+    voting_enabled: bool = True
 
 
 class TripPlaceResponse(BaseModel):
@@ -28,7 +32,15 @@ class TripPlaceResponse(BaseModel):
     primary_type: str | None = None
     rating: float | None = None
     suggested_by: UUID
+    scheduled_date: date
+    scheduled_time: time
+    duration_minutes: int = Field(ge=15, le=720)
+    voting_enabled: bool
+    leader_finalized_at: datetime | None = None
+    leader_finalized_by: UUID | None = None
     vote_count: int = Field(ge=0)
+    required_vote_count: int = Field(ge=1)
     current_user_voted: bool
+    is_confirmed: bool
     google_data_refreshed_at: datetime
     created_at: datetime

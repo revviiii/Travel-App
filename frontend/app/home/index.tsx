@@ -86,11 +86,9 @@ export default function HomeScreen() {
   // --- Search ---
   const handleSearchSubmit = useCallback(() => {
     const trimmed = destination.trim();
-    if (trimmed.length > 0) {
-      // TODO: Replace local destination behavior with Places/Maps API results
-      const path = `/discovery?destination=${encodeURIComponent(trimmed)}` as RelativePathString;
-      router.push(path);
-    }
+    const selectedDestination = trimmed || 'Manila';
+    const path = `/discovery?destination=${encodeURIComponent(selectedDestination)}` as RelativePathString;
+    router.push(path);
   }, [destination, router]);
 
   // --- Groups ---
@@ -204,7 +202,8 @@ export default function HomeScreen() {
         name={item.name}
         memberCount={item.memberCount}
         onPress={() => {
-          // TODO: Navigate to group detail screen
+          const path = `/discovery?tripId=${encodeURIComponent(item.id)}&section=itinerary` as RelativePathString;
+          router.push(path);
         }}
         onLongPress={
           item.currentUserRole === 'owner'
@@ -213,7 +212,7 @@ export default function HomeScreen() {
         }
       />
     ),
-    [handleLongPressGroup],
+    [handleLongPressGroup, router],
   );
 
   const renderGoalItem = useCallback(
@@ -297,10 +296,51 @@ export default function HomeScreen() {
         );
 
       case 'itinerary':
+        if (isLoadingGroups) {
+          return (
+            <View style={styles.groupStatus}>
+              <ActivityIndicator color={AutumnColors.primary} />
+              <Text style={styles.groupStatusText}>Loading itineraries...</Text>
+            </View>
+          );
+        }
+        if (groupError) {
+          return (
+            <View style={styles.groupStatus}>
+              <Text style={styles.groupErrorText}>{groupError}</Text>
+              <TouchableOpacity
+                accessibilityRole="button"
+                accessibilityLabel="Retry loading itineraries"
+                onPress={() => void loadGroups()}
+                style={styles.retryButton}
+              >
+                <Text style={styles.retryButtonText}>Retry</Text>
+              </TouchableOpacity>
+            </View>
+          );
+        }
+        if (groups.length > 0) {
+          return (
+            <View style={styles.groupSection}>
+              <Text style={styles.itineraryIntro}>
+                Choose a group to review saved places, vote, and finalize its schedule.
+              </Text>
+              <FlatList
+                data={groups}
+                keyExtractor={(item) => item.id}
+                renderItem={renderGroupItem}
+                contentContainerStyle={styles.groupList}
+                showsVerticalScrollIndicator={false}
+                style={styles.groupFlatList}
+                ItemSeparatorComponent={() => <View style={styles.groupSeparator} />}
+              />
+            </View>
+          );
+        }
         return (
           <EmptyState
             title="No plans yet!"
-            description="Add places to start your adventure."
+            description="Create a group, discover places, then build its shared itinerary."
           />
         );
 
@@ -654,6 +694,12 @@ const styles = StyleSheet.create({
   /* Group section */
   groupSection: {
     flex: 1,
+  },
+  itineraryIntro: {
+    color: AutumnColors.body,
+    fontSize: 13,
+    lineHeight: 18,
+    marginBottom: 10,
   },
   groupStatus: {
     flex: 1,

@@ -7,10 +7,10 @@ includes the server-side Google Places and Google Routes integrations.
 
 Current highest-priority remaining work:
 
-1. Replace the frontend's temporary preference context with the existing
+1. Complete and live-test the persisted scheduled-proposal itinerary flow.
+2. Replace the frontend's temporary preference context with the existing
    database-backed preference endpoints.
-2. Implement persisted itinerary and itinerary-item APIs and connect the UI.
-3. Add route caching, explicit refresh rules, and Google request cost controls.
+3. Add route caching, explicit refresh rules, and provider cost controls.
 4. Add Realtime subscriptions where the group UI needs live votes or updates.
 5. Complete integration tests, deployment configuration, monitoring, and the
    frontend handoff checklist.
@@ -70,14 +70,14 @@ creation, and invitation acceptance are also implemented and locally verified
 with two users. Per-user travel-goal create, list, and delete operations are
 implemented with owner-only RLS and connected to the Home screen.
 
-Priority after the August 19 frontend update:
+Priority after the August 20 itinerary workflow update:
 
-1. Connect the updated Preferences screen to `GET` and `PUT
+1. Apply and live-test the scheduled-place, unanimous-vote, leader-finalization,
+   and confirmed-only calendar flow from the Discovery Itinerary tab.
+2. Connect the updated Preferences screen to `GET` and `PUT
    /api/v1/me/preferences`; it currently uses temporary in-memory state.
-2. Keep signup/login, group CRUD, travel goals, Google discovery/routes, saved
-   places, and voting covered by frontend-to-backend integration tests.
-3. Implement persisted itinerary and itinerary-item operations for the
-   remaining Home/Discovery itinerary placeholders.
+3. Keep signup/login, group CRUD, travel goals, Google discovery/routes, saved
+   places, voting, and shared itineraries covered by integration tests.
 4. Add route-result caching and Realtime updates without weakening RLS.
 5. Prepare hosted development configuration and repeatable deployment checks.
 
@@ -166,10 +166,12 @@ for two selected itinerary places.
 
 ## 8. Add places, votes, and itinerary storage
 
-Current progress: `places`, `trip_places`, and `votes` are implemented with a
-stable Google Place ID, refreshed provider snapshot timestamp, duplicate-place
-prevention per trip, one vote per user/place, member RLS, authenticated APIs,
-and Discovery save/vote controls. Itinerary and route-cache storage remain.
+Current progress: `places`, `trip_places`, `votes`, `itineraries`, and
+`itinerary_items` are implemented with a stable Google Place ID, refreshed
+provider snapshot timestamp, duplicate-place prevention per trip, one vote per
+user/place, member RLS, authenticated APIs, Discovery save/vote controls,
+owner/admin vote-and-distance finalization, saved-place validation, and
+persisted itinerary display. Route-cache storage remains.
 
 Add migrations for:
 

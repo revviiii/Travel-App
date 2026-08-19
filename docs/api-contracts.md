@@ -151,11 +151,34 @@ hidden by RLS returns `404`.
 
 Saves a normalized Google Places result to a trip. Re-saving the same
 `google_place_id` in one trip is idempotent and refreshes the stored Google
-snapshot without creating a duplicate suggestion.
+snapshot without creating a duplicate suggestion. The user must choose the
+proposed date and time before saving:
+
+```json
+{
+  "google_place_id": "ChIJ...",
+  "name": "Uffizi Gallery",
+  "address": "Florence, Italy",
+  "location": { "latitude": 43.7687, "longitude": 11.2558 },
+  "primary_type": "museum",
+  "rating": 4.7,
+  "scheduled_date": "2026-08-22",
+  "scheduled_time": "09:00:00",
+  "duration_minutes": 120,
+  "voting_enabled": true
+}
+```
+
+Any member may create a scheduled proposal. Only an owner/admin may set
+`voting_enabled` to `false`; doing so confirms the proposal immediately as a
+leader decision.
 
 ### `GET /api/v1/trips/{trip_id}/places`
 
-Returns saved suggestions with `vote_count` and `current_user_voted`.
+Returns proposals in the itinerary with their chosen date/time,
+`vote_count`, `required_vote_count`, `current_user_voted`, and `is_confirmed`.
+`is_confirmed` becomes true when every current group member has voted or an
+owner/admin has finalized the proposal.
 
 ### `DELETE /api/v1/trips/{trip_id}/places/{trip_place_id}`
 
@@ -165,8 +188,29 @@ removed automatically by database cascade.
 ### `PUT /api/v1/trips/{trip_id}/places/{trip_place_id}/vote`
 
 Adds the authenticated member's vote idempotently.
+Returns `409` when the group leader disabled voting for the proposal.
 
 ### `DELETE /api/v1/trips/{trip_id}/places/{trip_place_id}/vote`
 
 Removes the authenticated member's vote idempotently. The database primary key
 enforces at most one vote per user and saved place.
+
+## Shared itinerary
+
+### `GET /api/v1/trips/{trip_id}/itinerary`
+
+Returns the persisted itinerary and its ordered items to any trip member. It
+returns JSON `null` when the trip does not have an itinerary yet. Each item
+contains the matching saved-place snapshot needed by the mobile UI.
+
+### `POST /api/v1/trips/{trip_id}/itinerary/finalize`
+
+Atomically saves the shared itinerary and confirms all its scheduled
+proposals. Only the trip owner or an admin may call it. No request body is
+required. The backend preserves each proposal's user-selected date, time, and
+duration and orders the result chronologically. It does not call a paid
+itinerary provider.
+
+The frontend may export only proposals whose `is_confirmed` value is true.
+Calendar export happens locally through the device's selected writable
+calendar; Supabase and FastAPI never receive calendar credentials.

@@ -23,7 +23,6 @@ class Settings(BaseSettings):
     supabase_secret_key: SecretStr | None = None
 
     google_maps_api_key: SecretStr | None = None
-    openai_api_key: SecretStr | None = None
     cors_origins: str = "http://localhost:8081"
 
 

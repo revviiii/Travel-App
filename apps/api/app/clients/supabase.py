@@ -14,10 +14,21 @@ TRIP_FIELDS = (
     "start_date,end_date,budget,status,created_at,updated_at"
 )
 TRAVEL_GOAL_FIELDS = "id,user_id,goal_text,created_at"
-TRIP_PLACE_FIELDS = "id,trip_id,place_id,suggested_by,created_at"
+TRIP_PLACE_FIELDS = (
+    "id,trip_id,place_id,suggested_by,scheduled_date,scheduled_time,duration_minutes,"
+    "voting_enabled,leader_finalized_at,leader_finalized_by,created_at"
+)
 PLACE_FIELDS = (
     "id,google_place_id,name,address,latitude,longitude,primary_type,rating,"
     "google_data_refreshed_at"
+)
+ITINERARY_FIELDS = (
+    "id,trip_id,created_by,title,summary,generation_method,start_date,end_date,"
+    "created_at,updated_at"
+)
+ITINERARY_ITEM_FIELDS = (
+    "id,itinerary_id,trip_place_id,day_number,position,start_time,duration_minutes,"
+    "travel_time_from_previous_minutes,notes,created_at"
 )
 
 
@@ -43,6 +54,10 @@ class SupabaseInvalidInvitationError(SupabaseApiError):
 
 class SupabaseTripPlaceAuthorizationError(SupabaseApiError):
     """Raised when a user cannot save a place to a trip."""
+
+
+class SupabaseItineraryAuthorizationError(SupabaseApiError):
+    """Raised when a user cannot replace a trip itinerary."""
 
 
 class SupabaseClient:
@@ -282,6 +297,10 @@ class SupabaseClient:
                 "new_longitude": location["longitude"],
                 "new_primary_type": values.get("primary_type"),
                 "new_rating": values.get("rating"),
+                "new_scheduled_date": values["scheduled_date"],
+                "new_scheduled_time": values["scheduled_time"],
+                "new_duration_minutes": values["duration_minutes"],
+                "new_voting_enabled": values["voting_enabled"],
             },
             allow_object=True,
             error_type=SupabaseTripPlaceAuthorizationError,
@@ -333,6 +352,69 @@ class SupabaseClient:
             headers={"Prefer": "return=representation"},
         )
 
+    async def get_trip_itinerary(
+        self,
+        trip_id: UUID,
+        user_id: UUID,
+    ) -> Mapping[str, object] | None:
+        itineraries = await self._request_rows(
+            "GET",
+            "/rest/v1/itineraries",
+            params={
+                "trip_id": f"eq.{trip_id}",
+                "select": ITINERARY_FIELDS,
+            },
+        )
+        if not itineraries:
+            return None
+
+        itinerary = itineraries[0]
+        items = await self._request_rows(
+            "GET",
+            "/rest/v1/itinerary_items",
+            params={
+                "itinerary_id": f"eq.{itinerary['id']}",
+                "select": ITINERARY_ITEM_FIELDS,
+                "order": "day_number.asc,position.asc",
+            },
+        )
+        places = await self.list_trip_places(trip_id, user_id)
+        places_by_id = {str(place["id"]): place for place in places}
+
+        return dict(itinerary) | {
+            "items": [
+                dict(item) | {"place": places_by_id[str(item["trip_place_id"])]}
+                for item in items
+                if str(item["trip_place_id"]) in places_by_id
+            ]
+        }
+
+    async def replace_trip_itinerary(
+        self,
+        trip_id: UUID,
+        user_id: UUID,
+        values: Mapping[str, object],
+    ) -> Mapping[str, object]:
+        await self._request_rows(
+            "POST",
+            "/rest/v1/rpc/replace_trip_itinerary",
+            json={
+                "target_trip_id": str(trip_id),
+                "new_title": values["title"],
+                "new_summary": values["summary"],
+                "new_generation_method": values["generation_method"],
+                "new_start_date": values["start_date"],
+                "new_end_date": values["end_date"],
+                "new_items": values["items"],
+            },
+            allow_object=True,
+            error_type=SupabaseItineraryAuthorizationError,
+        )
+        itinerary = await self.get_trip_itinerary(trip_id, user_id)
+        if itinerary is None:
+            raise SupabaseApiError("Itinerary was not saved")
+        return itinerary
+
     async def _enrich_trip_places(
         self,
         trip_places: list[Mapping[str, object]],
@@ -359,10 +441,23 @@ class SupabaseClient:
                 "select": "trip_place_id,user_id",
             },
         )
+        trip_ids = sorted({str(trip_place["trip_id"]) for trip_place in trip_places})
+        members = await self._request_rows(
+            "GET",
+            "/rest/v1/trip_members",
+            params={
+                "trip_id": f"in.({','.join(trip_ids)})",
+                "select": "trip_id,user_id",
+            },
+        )
 
         places_by_id = {str(place["id"]): place for place in places}
         vote_counts: dict[str, int] = {trip_place_id: 0 for trip_place_id in trip_place_ids}
         current_user_votes: set[str] = set()
+        member_counts: dict[str, int] = {trip_id: 0 for trip_id in trip_ids}
+        for member in members:
+            trip_id = str(member["trip_id"])
+            member_counts[trip_id] = member_counts.get(trip_id, 0) + 1
         for vote in votes:
             trip_place_id = str(vote["trip_place_id"])
             vote_counts[trip_place_id] = vote_counts.get(trip_place_id, 0) + 1
@@ -372,7 +467,13 @@ class SupabaseClient:
         enriched: list[Mapping[str, object]] = []
         for trip_place in trip_places:
             trip_place_id = str(trip_place["id"])
+            trip_id = str(trip_place["trip_id"])
             place = places_by_id[str(trip_place["place_id"])]
+            required_vote_count = max(member_counts.get(trip_id, 0), 1)
+            is_confirmed = trip_place["leader_finalized_at"] is not None or (
+                bool(trip_place["voting_enabled"])
+                and vote_counts[trip_place_id] >= required_vote_count
+            )
             enriched.append(
                 dict(trip_place)
                 | {
@@ -387,7 +488,9 @@ class SupabaseClient:
                     "rating": place["rating"],
                     "google_data_refreshed_at": place["google_data_refreshed_at"],
                     "vote_count": vote_counts[trip_place_id],
+                    "required_vote_count": required_vote_count,
                     "current_user_voted": trip_place_id in current_user_votes,
+                    "is_confirmed": is_confirmed,
                 }
             )
         return enriched

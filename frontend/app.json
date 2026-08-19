@@ -38,6 +38,13 @@
             "backgroundColor": "#000000"
           }
         }
+      ],
+      "@react-native-community/datetimepicker",
+      [
+        "expo-calendar",
+        {
+          "calendarPermission": "Allow Travel App to add finalized itinerary places to your calendar."
+        }
       ]
     ],
     "experiments": {

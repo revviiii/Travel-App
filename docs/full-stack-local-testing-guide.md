@@ -35,7 +35,9 @@ that address means the emulator itself.
 | Saved places and votes | Supabase tables through FastAPI | Connected and persistent |
 | Preference screen | Temporary frontend context | Backend endpoints exist; frontend persistence is still pending |
 | Invitations/members | Supabase through FastAPI | Backend complete; full frontend UI is still pending |
-| Itinerary items and route cache | Not completed | Do not report these as working yet |
+| Shared itinerary | Member-selected dates/times, voting, and leader finalization through FastAPI | Connected and persistent |
+| Calendar sync | Device calendar through Expo Calendar | Confirmed/orange places only |
+| Route cache | Not completed | Do not report this as working yet |
 
 ## 1. Pull the newest code first
 
@@ -224,7 +226,6 @@ SUPABASE_SECRET_KEY=<paste-local-secret-key>
 
 GOOGLE_MAPS_API_KEY=<obtain-from-Ramyl-securely>
 
-OPENAI_API_KEY=
 CORS_ORIGINS=http://localhost:8081
 ```
 
@@ -387,12 +388,34 @@ output, and FastAPI terminal error for any failure.
 ### Saved places and voting
 
 - Create a group first.
-- In Discovery Preferences, save a recommendation to that group.
+- In Discovery Preferences, choose a recommendation.
+- In **Preferences – Choices**, select its group, date, and time.
+- As an owner/admin, verify the Group Voting switch is visible. As a normal
+  member, verify it is not shown and voting remains enabled.
+- Tap **Add to Itinerary** and verify the app opens the Itinerary tab.
 - Open the Discovery Itinerary tab and select the group.
-- Verify the saved place appears.
+- Verify the scheduled place appears at the selected day/time with a gray
+  tracker while it is pending.
 - Vote, verify the count changes, then remove the vote.
-- Restart the app and verify the saved place remains.
+- When every current member votes, verify its tracker and card become orange.
+- Restart the app and verify the schedule and confirmation state remain.
 - In Studio, inspect `places`, `trip_places`, and `votes`.
+
+### Shared itinerary finalization
+
+- Save at least one place to a group; two to five places makes a clearer demo.
+- Add votes and verify incomplete proposals remain gray.
+- Open Discovery **Itinerary** and select the group.
+- As the group owner/admin, tap **Finalize all scheduled places**.
+- Verify every scheduled place becomes orange without changing the date/time
+  selected in Preferences – Choices.
+- Restart the app and verify the same itinerary loads from the database.
+- In Studio, inspect `itineraries` and `itinerary_items`.
+- Sign in as a normal member and verify the itinerary is visible but only an
+  owner/admin can finalize it.
+- Tap **Sync confirmed places to calendar**, choose a writable Google or device
+  calendar, and verify only orange places were added. Gray proposals must never
+  be exported.
 
 ### Known incomplete frontend paths
 
@@ -400,7 +423,7 @@ output, and FastAPI terminal error for any failure.
   written to `user_preferences` by the Preferences screen.
 - Invitation/member management APIs exist, but the complete user-facing flow is
   not yet available.
-- A complete persisted itinerary builder is not yet available.
+- Route caching and live Realtime itinerary updates are not yet available.
 
 Do not file these known items as new regressions. Check the current roadmap or
 ask Ramyl whether their implementation status changed.
@@ -443,7 +466,7 @@ npm run lint
 ```
 
 Automated FastAPI tests mock external Google calls, so normal test runs should
-not consume Google quota.
+not consume Google quota. Itinerary tests use only local deterministic logic.
 
 ## 12. Troubleshooting
 

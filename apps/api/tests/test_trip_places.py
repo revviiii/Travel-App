@@ -41,23 +41,32 @@ SAVED_PLACE = {
     "primary_type": "museum",
     "rating": None,
     "suggested_by": str(USER_ID),
+    "scheduled_date": "2026-08-22",
+    "scheduled_time": "09:00:00",
+    "duration_minutes": 120,
+    "voting_enabled": True,
+    "leader_finalized_at": None,
+    "leader_finalized_by": None,
     "vote_count": 0,
+    "required_vote_count": 1,
     "current_user_voted": False,
+    "is_confirmed": False,
     "google_data_refreshed_at": "2026-08-19T00:00:00Z",
     "created_at": "2026-08-19T00:00:00Z",
 }
 
 
 class FakeSupabaseClient:
-    def __init__(self) -> None:
+    def __init__(self, *, role: str = "owner") -> None:
         self.place: dict[str, object] = SAVED_PLACE.copy()
         self.places: list[Mapping[str, object]] = [self.place]
         self.saved_values: Mapping[str, object] | None = None
+        self.role = role
 
     async def get_trip(self, trip_id: UUID, user_id: UUID) -> Mapping[str, object]:
         assert trip_id == TRIP_ID
         assert user_id == USER_ID
-        return TRIP
+        return {**TRIP, "current_user_role": self.role}
 
     async def list_trip_places(
         self,
@@ -137,6 +146,10 @@ def test_save_and_list_trip_places() -> None:
         "location": {"latitude": 14.5869, "longitude": 120.9816},
         "primary_type": "museum",
         "rating": None,
+        "scheduled_date": "2026-08-22",
+        "scheduled_time": "09:00:00",
+        "duration_minutes": 120,
+        "voting_enabled": True,
     }
 
     with authenticated_client(fake_supabase) as client:
@@ -165,6 +178,38 @@ def test_add_and_remove_vote() -> None:
     assert unvote_response.status_code == 200
     assert unvote_response.json()["vote_count"] == 0
     assert unvote_response.json()["current_user_voted"] is False
+
+
+def test_member_cannot_disable_group_voting() -> None:
+    fake_supabase = FakeSupabaseClient(role="member")
+    payload = {
+        "google_place_id": "google-place-123",
+        "name": "National Museum",
+        "location": {"latitude": 14.5869, "longitude": 120.9816},
+        "scheduled_date": "2026-08-22",
+        "scheduled_time": "09:00:00",
+        "voting_enabled": False,
+    }
+
+    with authenticated_client(fake_supabase) as client:
+        response = client.post(f"/api/v1/trips/{TRIP_ID}/places", json=payload)
+
+    app.dependency_overrides.clear()
+    assert response.status_code == 403
+    assert response.json()["detail"] == ("Only trip owners and admins can disable group voting")
+    assert fake_supabase.saved_values is None
+
+
+def test_vote_is_rejected_when_leader_disabled_voting() -> None:
+    fake_supabase = FakeSupabaseClient()
+    fake_supabase.place["voting_enabled"] = False
+
+    with authenticated_client(fake_supabase) as client:
+        response = client.put(f"/api/v1/trips/{TRIP_ID}/places/{TRIP_PLACE_ID}/vote")
+
+    app.dependency_overrides.clear()
+    assert response.status_code == 409
+    assert response.json()["detail"] == "Group voting is disabled for this place"
 
 
 def test_delete_saved_place() -> None:

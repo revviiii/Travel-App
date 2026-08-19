@@ -16,7 +16,7 @@ trips.
 - API: Python and FastAPI
 - Data: Supabase PostgreSQL, Auth, Realtime, and Storage
 - Maps: Google Places API (New) and Routes API
-- AI: OpenAI API for optional itinerary assistance
+- Planning: scheduled place proposals, group voting, leader finalization, and calendar sync
 
 ## Repository layout
 

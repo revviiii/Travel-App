@@ -50,6 +50,9 @@ export type TripSummary = {
   owner_id: string;
   name: string;
   destination_name: string | null;
+  start_date: string | null;
+  end_date: string | null;
+  budget: number | null;
   member_count: number;
   current_user_role: 'owner' | 'admin' | 'member';
   status: 'planning' | 'active' | 'completed' | 'cancelled';
@@ -73,10 +76,45 @@ export type SavedTripPlace = {
   primary_type: string | null;
   rating: number | null;
   suggested_by: string;
+  scheduled_date: string;
+  scheduled_time: string;
+  duration_minutes: number;
+  voting_enabled: boolean;
+  leader_finalized_at: string | null;
+  leader_finalized_by: string | null;
   vote_count: number;
+  required_vote_count: number;
   current_user_voted: boolean;
+  is_confirmed: boolean;
   google_data_refreshed_at: string;
   created_at: string;
+};
+
+export type ItineraryItem = {
+  id: string;
+  trip_place_id: string;
+  day_number: number;
+  position: number;
+  start_time: string;
+  duration_minutes: number;
+  travel_time_from_previous_minutes: number;
+  notes: string;
+  place: SavedTripPlace;
+  created_at: string;
+};
+
+export type TripItinerary = {
+  id: string;
+  trip_id: string;
+  created_by: string;
+  title: string;
+  summary: string;
+  generation_method: string;
+  start_date: string;
+  end_date: string;
+  items: ItineraryItem[];
+  created_at: string;
+  updated_at: string;
 };
 
 type RequestOptions = {
@@ -194,6 +232,12 @@ export function getTripPlaces(tripId: string): Promise<SavedTripPlace[]> {
 export function savePlaceToTrip(
   tripId: string,
   place: PlaceMarker,
+  schedule: {
+    scheduledDate: string;
+    scheduledTime: string;
+    durationMinutes?: number;
+    votingEnabled: boolean;
+  },
 ): Promise<SavedTripPlace> {
   return authenticatedRequest(
     `/api/v1/trips/${encodeURIComponent(tripId)}/places`,
@@ -206,6 +250,10 @@ export function savePlaceToTrip(
         location: place.location,
         primary_type: place.primary_type,
         rating: place.rating,
+        scheduled_date: schedule.scheduledDate,
+        scheduled_time: schedule.scheduledTime,
+        duration_minutes: schedule.durationMinutes ?? 120,
+        voting_enabled: schedule.votingEnabled,
       },
     },
   );
@@ -219,5 +267,18 @@ export function setTripPlaceVote(
   return authenticatedRequest(
     `/api/v1/trips/${encodeURIComponent(tripId)}/places/${encodeURIComponent(tripPlaceId)}/vote`,
     { method: voted ? 'PUT' : 'DELETE' },
+  );
+}
+
+export function getTripItinerary(tripId: string): Promise<TripItinerary | null> {
+  return authenticatedRequest(
+    `/api/v1/trips/${encodeURIComponent(tripId)}/itinerary`,
+  );
+}
+
+export function finalizeTripItinerary(tripId: string): Promise<TripItinerary> {
+  return authenticatedRequest(
+    `/api/v1/trips/${encodeURIComponent(tripId)}/itinerary/finalize`,
+    { method: 'POST' },
   );
 }
