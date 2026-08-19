@@ -32,10 +32,12 @@ const styles = StyleSheet.create({
   tab: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    borderRadius: 24,
-    gap: 6,
+    justifyContent: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderRadius: 28,
+    gap: 7,
+    minHeight: 40,
   },
   tabInactive: {
     backgroundColor: AutumnColors.chipBackground,
@@ -48,8 +50,8 @@ const styles = StyleSheet.create({
     borderColor: AutumnColors.secondaryAccent,
   },
   iconPlaceholder: {
-    width: 16,
-    height: 16,
+    width: 18,
+    height: 18,
     borderRadius: 4,
     backgroundColor: AutumnColors.chipBorder,
   },
@@ -62,6 +64,6 @@ const styles = StyleSheet.create({
     color: AutumnColors.chipText,
   },
   labelActive: {
-    color: '#FFFFFF',
+    color: AutumnColors.selectedTabText,
   },
 });

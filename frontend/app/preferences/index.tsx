@@ -1,4 +1,3 @@
-import { useState } from 'react';
 import {
   ScrollView,
   StyleSheet,
@@ -9,46 +8,16 @@ import {
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { AutumnColors } from '@/constants/colors';
+import { PREFERENCE_CATEGORIES } from '@/constants/preferences';
 import { PreferenceChip } from '@/components/onboarding/PreferenceChip';
+import { usePreferences } from '@/contexts/PreferenceContext';
 
 // TODO: Redirect returning users directly to the main app when preferences are already completed
-
-/**
- * Travel preference categories.
- * Easy to edit — just update this array when labels change.
- */
-const PREFERENCES = [
-  { id: 'outdoors', label: 'Outdoors' },
-  { id: 'city', label: 'City Exploration' },
-  { id: 'culture', label: 'Cultural & Heritage' },
-  { id: 'beaches', label: 'Beaches' },
-  { id: 'nature', label: 'Nature' },
-  { id: 'roadtrips', label: 'Road Trips' },
-  { id: 'food', label: 'Food & Culinary' },
-  { id: 'gym', label: 'Gym' },
-  { id: 'bar', label: 'Bar' },
-  { id: 'shopping', label: 'Shopping' },
-  { id: 'skiing', label: 'Skiing/Snowboarding' },
-  { id: 'retreats', label: 'Retreats' },
-  { id: 'spa', label: 'SPA' },
-] as const;
 
 export default function PreferencesScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const [selected, setSelected] = useState<Set<string>>(new Set());
-
-  const togglePreference = (id: string) => {
-    setSelected((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) {
-        next.delete(id);
-      } else {
-        next.add(id);
-      }
-      return next;
-    });
-  };
+  const { selectedPreferences, togglePreference, isMaxReached, maxPreferences } = usePreferences();
 
   const handleBack = () => {
     router.back();
@@ -98,18 +67,24 @@ export default function PreferencesScreen() {
         {/* Heading */}
         <Text style={styles.heading}>Your Preference</Text>
 
-        {/* Description */}
+        {/* Description + selection hint */}
         <Text style={styles.description}>
           Share your travel preferences, and we&apos;ll craft your perfect trip.
+        </Text>
+        <Text style={styles.selectionHint}>Choose up to {maxPreferences} interests</Text>
+
+        {/* Selection counter */}
+        <Text style={styles.counter}>
+          {selectedPreferences.size} / {maxPreferences} selected
         </Text>
 
         {/* Preference chips — flex-wrap flow layout */}
         <View style={styles.grid}>
-          {PREFERENCES.map((pref) => (
+          {PREFERENCE_CATEGORIES.map((pref) => (
             <PreferenceChip
               key={pref.id}
               label={pref.label}
-              selected={selected.has(pref.id)}
+              selected={selectedPreferences.has(pref.id)}
               onPress={() => togglePreference(pref.id)}
             />
           ))}
@@ -203,8 +178,26 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     lineHeight: 22,
     marginTop: 12,
-    marginBottom: 28,
     paddingHorizontal: 8,
+  },
+
+  /* Selection hint */
+  selectionHint: {
+    fontSize: 13,
+    fontWeight: '500',
+    color: AutumnColors.body,
+    textAlign: 'center',
+    marginTop: 6,
+  },
+
+  /* Counter */
+  counter: {
+    fontSize: 12,
+    fontWeight: '400',
+    color: AutumnColors.body,
+    textAlign: 'right',
+    marginTop: 12,
+    marginBottom: 16,
   },
 
   /* Chip flow layout — chips self-size to content, wrap naturally into rows */

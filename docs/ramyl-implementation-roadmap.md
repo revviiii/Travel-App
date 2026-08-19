@@ -45,6 +45,23 @@ User B can read it after accepting a valid invitation.
 
 ## 4. Build authenticated FastAPI endpoints
 
+Current progress: Supabase access-token validation, `GET /api/v1/me`,
+`PATCH /api/v1/me`, `GET /api/v1/me/preferences`, and
+`PUT /api/v1/me/preferences` are implemented with mocked tests.
+
+Priority after the August 19 frontend update:
+
+1. Apply the preferences RPC migration and smoke-test these four endpoints
+   against local Supabase.
+2. Give frontend developers the API contract and have them replace mock
+   login, signup, and preference actions with Supabase Auth plus these APIs.
+3. Implement trip/group CRUD because the Home screen currently stores groups
+   only in component state.
+4. Add travel-goal storage because the Home screen currently stores goals only
+   in component state.
+5. Expose Google Places recommendations because Discovery still uses mock
+   cards and a map placeholder.
+
 Implement in this order:
 
 ```text
@@ -77,6 +94,11 @@ Done when a single test request succeeds and the key is API-restricted.
 
 ## 6. Implement Google Places
 
+Current progress: the authenticated `/api/v1/maps/places/nearby` endpoint,
+frontend preference mapping, normalized marker responses, restricted Pro-tier
+field mask, mocked tests, and a live request using an API-restricted Google key
+are complete.
+
 1. Keep the Google HTTP request inside `GooglePlacesClient`.
 2. Accept latitude, longitude, radius, category types, and result count.
 3. Map UI preference labels to valid Google place types.
@@ -98,6 +120,10 @@ Done when mocked tests pass, one real search works, and repeated UI rendering
 does not automatically repeat billable searches.
 
 ## 7. Implement Google Routes
+
+Current progress: the authenticated `/api/v1/maps/routes/compute` endpoint,
+normalized distance, duration, leg, and encoded-polyline response, mocked
+tests, and a live request using an API-restricted Google key are complete.
 
 1. Keep the request inside `GoogleRoutesClient`.
 2. Accept origin, destination, and travel mode.
