@@ -7,6 +7,8 @@ interface PlaceCardProps {
   location: string;
   rating: number;
   status: string;
+  /** Optional callback for the circular Add-to-Itinerary action */
+  onAddToItinerary?: () => void;
 }
 
 /**
@@ -16,7 +18,7 @@ interface PlaceCardProps {
  *
  * // TODO: Replace mock recommendations with backend/maps API data
  */
-export function PlaceCard({ category, name, location, rating, status }: PlaceCardProps) {
+export function PlaceCard({ category, name, location, rating, status, onAddToItinerary }: PlaceCardProps) {
   return (
     <View style={styles.card}>
       {/* TODO: Replace with actual place image from API */}
@@ -45,8 +47,10 @@ export function PlaceCard({ category, name, location, rating, status }: PlaceCar
       <TouchableOpacity
         style={styles.linkButton}
         accessibilityRole="button"
-        accessibilityLabel="View details"
+        accessibilityLabel={onAddToItinerary ? 'Add to itinerary' : 'View details'}
+        onPress={onAddToItinerary}
       >
+        {/* TODO: Replace with final Figma Add-to-Itinerary SVG */}
         <View style={styles.linkIconPlaceholder} />
       </TouchableOpacity>
     </View>

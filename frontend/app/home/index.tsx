@@ -127,12 +127,14 @@ export default function HomeScreen() {
         name={item.name}
         memberCount={item.memberCount}
         onPress={() => {
-          // TODO: Navigate to group detail screen
+          // TODO: Replace temporary group ID with backend-generated groupId
+          const path = `/group/${item.id}` as RelativePathString;
+          router.push(path);
         }}
         onLongPress={() => handleLongPressGroup(item.id)}
       />
     ),
-    [handleLongPressGroup],
+    [handleLongPressGroup, router],
   );
 
   const renderGoalItem = useCallback(
