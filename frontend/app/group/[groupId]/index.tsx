@@ -1,5 +1,6 @@
-import { useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import {
+  ActivityIndicator,
   ScrollView,
   StyleSheet,
   Text,
@@ -12,26 +13,20 @@ import { AutumnColors } from '@/constants/colors';
 import { GroupMemberCard } from '@/components/group/GroupMemberCard';
 import { GroupJumpBackCard } from '@/components/group/GroupJumpBackCard';
 import { GroupInviteSheet } from '@/components/group/GroupInviteSheet';
+import {
+  getTrip,
+  getTripMembers,
+  getTripPlaces,
+  type SavedTripPlace,
+  type TripMember,
+  type TripSummary,
+} from '@/lib/api';
 
-/**
- * Temporary mock member data for layout testing.
- * TODO: Fetch/sync accepted group members from backend
- * TODO: Replace with real group member/profile data
- */
-const MOCK_MEMBERS = [
-  { id: 'm1', name: 'Member name', preferences: ['Road Trips', 'Art Gallery'] },
-  { id: 'm2', name: 'Member name', preferences: ['Road Trips', 'Art Gallery'] },
-  { id: 'm3', name: 'Member name', preferences: ['Road Trips', 'Art Gallery'] },
-];
-
-/**
- * Temporary mock Jump Back In data for layout testing.
- * TODO: Replace with group itinerary/recommendation API data
- */
-const MOCK_JUMP_BACK = [
-  { id: 'jb1', title: 'Nature', attractionCount: 2 },
-  { id: 'jb2', title: 'Safari', attractionCount: 5 },
-];
+function formatPreference(value: string): string {
+  return value
+    .replace(/[-_]/g, ' ')
+    .replace(/\b\w/g, (character) => character.toUpperCase());
+}
 
 export default function GroupDetailsScreen() {
   const router = useRouter();
@@ -39,13 +34,39 @@ export default function GroupDetailsScreen() {
   const { groupId } = useLocalSearchParams<{ groupId: string }>();
 
   const [showInvite, setShowInvite] = useState(false);
+  const [group, setGroup] = useState<TripSummary | null>(null);
+  const [members, setMembers] = useState<TripMember[]>([]);
+  const [savedPlaces, setSavedPlaces] = useState<SavedTripPlace[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
-  // TODO: Fetch group data from backend using groupId
-  // TODO: Replace temporary group ID with backend-generated groupId
-  const groupName = 'Group Name';
+  const loadGroup = useCallback(async () => {
+    if (!groupId) return;
+    setIsLoading(true);
+    setErrorMessage(null);
+    try {
+      const [loadedGroup, loadedMembers, loadedPlaces] = await Promise.all([
+        getTrip(groupId),
+        getTripMembers(groupId),
+        getTripPlaces(groupId),
+      ]);
+      setGroup(loadedGroup);
+      setMembers(loadedMembers);
+      setSavedPlaces(loadedPlaces);
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : 'Unable to load this group.');
+    } finally {
+      setIsLoading(false);
+    }
+  }, [groupId]);
 
-  // Determine whether the group has saved data (for demo: use mock data presence)
-  const hasJumpBackData = MOCK_JUMP_BACK.length > 0;
+  useEffect(() => {
+    void loadGroup();
+  }, [loadGroup]);
+
+  const groupName = group?.name ?? 'Travel group';
+  const hasJumpBackData = savedPlaces.length > 0;
+  const canInvite = group?.current_user_role === 'owner' || group?.current_user_role === 'admin';
 
   const handleBack = () => {
     router.back();
@@ -56,8 +77,7 @@ export default function GroupDetailsScreen() {
   };
 
   const handleCreateNewPlace = () => {
-    // Navigate to Group Discovery
-    const path = `/group/${groupId}/discovery` as RelativePathString;
+    const path = `/discovery?tripId=${encodeURIComponent(groupId ?? '')}&section=preferences` as RelativePathString;
     router.push(path);
   };
 
@@ -95,8 +115,22 @@ export default function GroupDetailsScreen() {
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
       >
+        {isLoading ? (
+          <View style={styles.statusContainer}>
+            <ActivityIndicator color={AutumnColors.primary} />
+            <Text style={styles.statusText}>Loading group…</Text>
+          </View>
+        ) : null}
+
+        {errorMessage ? (
+          <TouchableOpacity style={styles.errorCard} onPress={() => void loadGroup()}>
+            <Text style={styles.errorText}>{errorMessage}</Text>
+            <Text style={styles.retryText}>Tap to retry</Text>
+          </TouchableOpacity>
+        ) : null}
+
         {/* Jump Back In or Start Your Journey */}
-        {hasJumpBackData ? (
+        {!isLoading && !errorMessage && hasJumpBackData ? (
           <>
             <Text style={styles.sectionTitle}>Jump Back In</Text>
             <ScrollView
@@ -104,16 +138,17 @@ export default function GroupDetailsScreen() {
               showsHorizontalScrollIndicator={false}
               contentContainerStyle={styles.jumpBackRow}
             >
-              {MOCK_JUMP_BACK.map((item) => (
-                <GroupJumpBackCard
-                  key={item.id}
-                  title={item.title}
-                  attractionCount={item.attractionCount}
-                />
-              ))}
+              <GroupJumpBackCard
+                title={group?.destination_name || groupName}
+                attractionCount={savedPlaces.length}
+                onPress={() => {
+                  const path = `/discovery?tripId=${encodeURIComponent(groupId ?? '')}&section=itinerary` as RelativePathString;
+                  router.push(path);
+                }}
+              />
             </ScrollView>
           </>
-        ) : (
+        ) : !isLoading && !errorMessage ? (
           <>
             <Text style={styles.sectionTitle}>Start Your Journey</Text>
             {/* Map placeholder for empty group state */}
@@ -131,10 +166,10 @@ export default function GroupDetailsScreen() {
               </TouchableOpacity>
             </View>
           </>
-        )}
+        ) : null}
 
         {/* Create New Place CTA */}
-        {hasJumpBackData && (
+        {!isLoading && !errorMessage && hasJumpBackData && (
           <TouchableOpacity
             activeOpacity={0.85}
             onPress={handleCreateNewPlace}
@@ -158,17 +193,17 @@ export default function GroupDetailsScreen() {
         {/* See Group Members */}
         <Text style={styles.sectionTitle}>See Group Members</Text>
 
-        {MOCK_MEMBERS.map((member) => (
-          <View key={member.id} style={styles.memberCardWrapper}>
+        {members.map((member) => (
+          <View key={member.user_id} style={styles.memberCardWrapper}>
             <GroupMemberCard
-              name={member.name}
-              preferences={member.preferences}
+              name={member.full_name || `${formatPreference(member.role)} member`}
+              preferences={member.preference_keys.map(formatPreference)}
             />
           </View>
         ))}
 
         {/* Add Member */}
-        <TouchableOpacity
+        {canInvite ? <TouchableOpacity
           activeOpacity={0.8}
           onPress={() => setShowInvite(true)}
           accessibilityRole="button"
@@ -182,13 +217,15 @@ export default function GroupDetailsScreen() {
           <Text style={styles.addMemberText}>Add Member</Text>
           {/* TODO: Replace with final Figma plus SVG icon */}
           <View style={styles.plusIconPlaceholder} />
-        </TouchableOpacity>
+        </TouchableOpacity> : null}
       </ScrollView>
 
       {/* Invite Sheet */}
       <GroupInviteSheet
         visible={showInvite}
+        groupId={groupId ?? ''}
         groupName={groupName}
+        canInvite={canInvite}
         onClose={() => setShowInvite(false)}
       />
     </View>
@@ -235,6 +272,33 @@ const styles = StyleSheet.create({
   scrollContent: {
     paddingHorizontal: 16,
     paddingBottom: 32,
+  },
+  statusContainer: {
+    alignItems: 'center',
+    gap: 8,
+    paddingVertical: 28,
+  },
+  statusText: {
+    color: AutumnColors.body,
+    fontSize: 13,
+  },
+  errorCard: {
+    backgroundColor: '#FBE9E5',
+    borderRadius: 12,
+    marginBottom: 16,
+    padding: 14,
+  },
+  errorText: {
+    color: '#8A2C1F',
+    fontSize: 13,
+    textAlign: 'center',
+  },
+  retryText: {
+    color: AutumnColors.primary,
+    fontSize: 12,
+    fontWeight: '600',
+    marginTop: 6,
+    textAlign: 'center',
   },
 
   /* Section title */

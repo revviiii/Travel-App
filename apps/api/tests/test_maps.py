@@ -6,10 +6,12 @@ from app.api.dependencies import (
     get_current_user,
     get_google_places_client,
     get_google_routes_client,
+    get_maps_rate_limiter,
 )
 from app.main import app
 from app.schemas.google_maps import NearbySearchQuery, RouteQuery
 from app.schemas.profile import CurrentUser
+from app.services.rate_limit import RateLimitExceededError
 
 USER_ID = UUID("6f7ce5df-ef53-46d4-a6f9-43ebf9b57b9a")
 
@@ -47,6 +49,11 @@ class FakeRoutesClient:
                 }
             ]
         }
+
+
+class RejectingRateLimiter:
+    async def check(self, *args: object, **kwargs: object) -> None:
+        raise RateLimitExceededError(17)
 
 
 def override_authenticated_user() -> CurrentUser:
@@ -127,3 +134,20 @@ def test_compute_route_normalizes_polyline_distance_and_duration() -> None:
     }
     assert fake_routes.query is not None
     assert fake_routes.query.travel_mode == "WALK"
+
+
+def test_maps_endpoint_throttles_before_spending_provider_quota() -> None:
+    app.dependency_overrides[get_current_user] = override_authenticated_user
+    app.dependency_overrides[get_google_places_client] = FakePlacesClient
+    app.dependency_overrides[get_maps_rate_limiter] = RejectingRateLimiter
+
+    with TestClient(app) as client:
+        response = client.post(
+            "/api/v1/maps/places/nearby",
+            json={"center": {"latitude": 14.5995, "longitude": 120.9842}},
+        )
+
+    app.dependency_overrides.clear()
+    assert response.status_code == 429
+    assert response.headers["retry-after"] == "17"
+    assert response.json() == {"detail": "Too many map requests. Please wait before trying again."}

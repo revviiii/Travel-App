@@ -1,8 +1,23 @@
 # Ramyl implementation roadmap
 
-Ramyl owns the database, core backend foundation, Google Places integration,
-and Google Routes integration. Complete the steps in order; each step has a
-working result that can be reviewed independently.
+Ramyl owns the complete backend and database: FastAPI endpoints, Supabase
+schema, migrations, Auth integration, row-level security, external service
+clients, tests, API contracts, and local/deployment configuration. This also
+includes the server-side Google Places and Google Routes integrations.
+
+Completion update (August 22, 2026):
+
+1. The scheduled-proposal, unanimous-vote, leader-finalization, and
+   confirmed-only calendar flow is implemented and tested.
+2. Profile and preference screens now use the authenticated FastAPI endpoints.
+3. Google endpoints have per-user throttling, strict result limits, safe field
+   masks, and mocked tests. A persistent response cache was intentionally not
+   added because current Google Maps policies restrict caching most Places and
+   Routes content; Google Cloud quotas remain required.
+4. Realtime publication/subscriptions refresh collaborative saved places and
+   votes while preserving RLS.
+5. Automated checks, container deployment configuration, request IDs/logging,
+   API contracts, and the full teammate testing handoff are implemented.
 
 ## 1. Protect and scaffold the repository
 
@@ -32,6 +47,12 @@ obtain the same schema.
 
 ## 3. Finish the core schema and authorization
 
+Current progress: Auth profile creation, the core trip/member/invitation
+schema, explicit authenticated grants, RLS policies, atomic trip creation, and
+atomic invitation acceptance are implemented. A rollback-only two-user smoke
+test confirmed that a non-member cannot rely on owner access and can read the
+trip after joining.
+
 1. Review the first migrations with the team.
 2. Confirm that the UI word "Group" maps to the backend entity `trip`.
 3. Create profiles automatically after Supabase Auth signup.
@@ -47,20 +68,22 @@ User B can read it after accepting a valid invitation.
 
 Current progress: Supabase access-token validation, `GET /api/v1/me`,
 `PATCH /api/v1/me`, `GET /api/v1/me/preferences`, and
-`PUT /api/v1/me/preferences` are implemented with mocked tests.
+`PUT /api/v1/me/preferences` are implemented with mocked tests. Authenticated
+trip creation, listing, detail, member listing, owner deletion, invitation
+creation, and invitation acceptance are also implemented and locally verified
+with two users. Per-user travel-goal create, list, and delete operations are
+implemented with owner-only RLS and connected to the Home screen.
 
-Priority after the August 19 frontend update:
+Priority after the August 20 itinerary workflow update:
 
-1. Apply the preferences RPC migration and smoke-test these four endpoints
-   against local Supabase.
-2. Give frontend developers the API contract and have them replace mock
-   login, signup, and preference actions with Supabase Auth plus these APIs.
-3. Implement trip/group CRUD because the Home screen currently stores groups
-   only in component state.
-4. Add travel-goal storage because the Home screen currently stores goals only
-   in component state.
-5. Expose Google Places recommendations because Discovery still uses mock
-   cards and a map placeholder.
+1. Apply and live-test the scheduled-place, unanimous-vote, leader-finalization,
+   and confirmed-only calendar flow from the Discovery Itinerary tab.
+2. Connect the updated Preferences screen to `GET` and `PUT
+   /api/v1/me/preferences`; it currently uses temporary in-memory state.
+3. Keep signup/login, group CRUD, travel goals, Google discovery/routes, saved
+   places, voting, and shared itineraries covered by integration tests.
+4. Keep request throttling and Realtime updates working without weakening RLS.
+5. Prepare hosted development configuration and repeatable deployment checks.
 
 Implement in this order:
 
@@ -73,6 +96,7 @@ POST   /api/v1/trips
 GET    /api/v1/trips
 GET    /api/v1/trips/{trip_id}
 GET    /api/v1/trips/{trip_id}/members
+DELETE /api/v1/trips/{trip_id}
 POST   /api/v1/trips/{trip_id}/invitations
 POST   /api/v1/invitations/{token}/accept
 ```
@@ -105,7 +129,8 @@ are complete.
 4. Call `POST https://places.googleapis.com/v1/places:searchNearby`.
 5. Always send `X-Goog-FieldMask`; never use `*` in production.
 6. Normalize Google's response into your own place response schema.
-7. Cache only the data permitted by Google's current terms and refresh rules.
+7. Store/cache only data permitted by Google's current terms; stable Place IDs
+   are the long-term identifier exception.
 8. Store the stable Google Place ID with each pinned place.
 9. Add timeouts and translate Google failures into safe API errors.
 10. Unit-test the client with mocked HTTP responses before using real quota.
@@ -130,8 +155,8 @@ tests, and a live request using an API-restricted Google key are complete.
 3. Call `POST https://routes.googleapis.com/directions/v2:computeRoutes`.
 4. Always request an explicit field mask.
 5. Normalize distance, duration, encoded polyline, and route legs.
-6. Cache results using origin, destination, mode, and departure-time buckets.
-7. Recalculate when itinerary ordering or travel mode changes.
+6. Recalculate only after an explicit user action or meaningful input change.
+7. Throttle repeat requests and enforce stricter provider quotas in Google Cloud.
 8. Display Google's required attribution with route results.
 9. Unit-test with mocked responses and only then make a live call.
 
@@ -146,6 +171,14 @@ for two selected itinerary places.
 
 ## 8. Add places, votes, and itinerary storage
 
+Current progress: `places`, `trip_places`, `votes`, `itineraries`, and
+`itinerary_items` are implemented with a stable Google Place ID, refreshed
+provider snapshot timestamp, duplicate-place prevention per trip, one vote per
+user/place, member RLS, authenticated APIs, Discovery save/vote controls,
+owner/admin vote-and-distance finalization, saved-place validation, and
+persisted itinerary display, and Realtime collaboration. Persistent Google
+response caching is excluded pending an applicable Google license/policy basis.
+
 Add migrations for:
 
 ```text
@@ -154,7 +187,6 @@ trip_places
 votes
 itineraries
 itinerary_items
-route_cache
 ```
 
 Enforce one vote per user and place with a unique constraint. Store itinerary
@@ -165,9 +197,11 @@ previous item.
 
 1. Keep `/openapi.json` current.
 2. Give frontend developers example requests and responses.
-3. Provide mock endpoints before live Google keys are required.
-4. Agree on ISO 8601 timestamps and API error format.
-5. Test the complete flow using two real Supabase test accounts.
+3. Keep the [full local testing guide](full-stack-local-testing-guide.md)
+   synchronized with ports, environment variables, and startup commands.
+4. Provide mock endpoints before live Google keys are required.
+5. Agree on ISO 8601 timestamps and API error format.
+6. Test the complete flow using two real Supabase test accounts.
 
 ## 10. Definition of complete
 
@@ -176,6 +210,6 @@ previous item.
 - FastAPI tests pass.
 - Google calls are mocked in normal tests.
 - Real Google calls happen only in explicit integration tests.
-- Field masks, quotas, caching, and key restrictions control cost.
+- Field masks, per-user throttling, provider quotas, and key restrictions control cost.
 - The mobile app can create a trip, discover a place, vote, add it to an
   itinerary, and retrieve a route.

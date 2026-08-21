@@ -1,20 +1,27 @@
-import { useState, useMemo, useCallback } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
+  ActivityIndicator,
+  Alert,
   FlatList,
   Modal,
   ScrollView,
   StyleSheet,
+  Switch,
   Text,
   TextInput,
   TouchableOpacity,
   View,
 } from 'react-native';
-import { useRouter, useLocalSearchParams } from 'expo-router';
+import DateTimePicker, {
+  type DateTimePickerEvent,
+} from '@react-native-community/datetimepicker';
+import * as Calendar from 'expo-calendar';
+import { useLocalSearchParams, useRouter } from 'expo-router';
+import MapView, { Marker, Polyline } from 'react-native-maps';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { AutumnColors } from '@/constants/colors';
 import { PREFERENCE_CATEGORIES } from '@/constants/preferences';
 import { usePreferences } from '@/contexts/PreferenceContext';
-import { useSoloGoals, type SoloGoal } from '@/contexts/SoloGoalsContext';
 import { PlannerTab } from '@/components/home/PlannerTab';
 import { EmptyState } from '@/components/home/EmptyState';
 import { TravelGoalCard } from '@/components/home/TravelGoalCard';
@@ -23,75 +30,530 @@ import { PreferenceFilterChip } from '@/components/discovery/PreferenceFilterChi
 import { PlaceCard } from '@/components/discovery/PlaceCard';
 import { DiscoveryBottomSheet } from '@/components/discovery/DiscoveryBottomSheet';
 import { DiscoveryFilterPanel } from '@/components/discovery/DiscoveryFilterPanel';
+import {
+  computeRoute,
+  createGroupGoal,
+  createTravelGoal,
+  deleteGroupGoal,
+  deleteTravelGoal,
+  finalizeTripItinerary,
+  getGroupGoals,
+  getTravelGoals,
+  getTripPlaces,
+  getTrips,
+  type PlaceMarker,
+  type PreferenceKey,
+  type SavedTripPlace,
+  type TripSummary,
+  savePlaceToTrip,
+  searchNearbyPlaces,
+  setTripPlaceVote,
+} from '@/lib/api';
+import { decodeGooglePolyline } from '@/lib/polyline';
+import { supabase } from '@/lib/supabase';
 
 type DiscoverySection = 'preferences' | 'itinerary' | 'goals';
 
-/**
- * Mock place/recommendation data for layout testing.
- * Each place has a categoryId that maps to a preference ID for prototype filtering.
- * TODO: Replace mock recommendations with recommendation/maps API response.
- */
-const MOCK_PLACES = [
-  {
-    id: '1',
-    categoryId: 'culture',
-    category: 'Cultural & Heritage',
-    name: 'Uffizi Gallery',
-    location: 'Location Details',
-    rating: 4.7,
-    status: 'Open \u00B7 Mon-Thu: 10:00 AM\u20139:00 PM',
-  },
-  {
-    id: '2',
-    categoryId: 'outdoors',
-    category: 'Outdoors',
-    name: 'Name',
-    location: 'Location',
-    rating: 4.7,
-    status: 'Status',
-  },
-  {
-    id: '3',
-    categoryId: 'food',
-    category: 'Food & Culinary',
-    name: 'Name',
-    location: 'Location',
-    rating: 4.7,
-    status: 'Status',
-  },
-] as const;
+const MANILA_CENTER = {
+  latitude: 14.5995,
+  longitude: 120.9842,
+};
+
+type RouteSummary = {
+  distanceMeters: number;
+  durationSeconds: number;
+};
+
+function toDateValue(date: Date): string {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
+function toTimeValue(date: Date): string {
+  return `${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}:00`;
+}
+
+function formatScheduledDate(value: string): string {
+  return new Date(`${value}T00:00:00`).toLocaleDateString('en-US', {
+    weekday: 'short',
+    month: 'short',
+    day: 'numeric',
+  });
+}
+
+function formatScheduledTime(value: string): string {
+  return new Date(`2000-01-01T${value}`).toLocaleTimeString('en-US', {
+    hour: 'numeric',
+    minute: '2-digit',
+  });
+}
 
 export default function DiscoveryScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { destination } = useLocalSearchParams<{ destination?: string }>();
+  const { destination, tripId, section } = useLocalSearchParams<{
+    destination?: string;
+    tripId?: string;
+    section?: DiscoverySection;
+  }>();
   const { selectedPreferences } = usePreferences();
+  const isGroupMode = Boolean(tripId);
 
-  const [activeTab, setActiveTab] = useState<DiscoverySection>('preferences');
-  const [showFilterPanel, setShowFilterPanel] = useState(false);
-
-  // Active Discovery filters — initialized from user preferences but independent.
-  // Toggling these does NOT modify the user's actual preference profile.
-  // Using an array to preserve selection order for display ordering.
-  const [activeFilterOrder, setActiveFilterOrder] = useState<string[]>(
-    () => Array.from(selectedPreferences),
+  const [activeTab, setActiveTab] = useState<DiscoverySection>(
+    section === 'itinerary' || section === 'goals' ? section : 'preferences',
   );
-
-  // Set view for O(1) lookup
+  const [showFilterPanel, setShowFilterPanel] = useState(false);
+  const [activeFilterOrder, setActiveFilterOrder] = useState<string[]>(() => {
+    const initial = Array.from(selectedPreferences);
+    return initial.length > 0 ? initial.slice(0, 4) : ['food', 'culture'];
+  });
   const activeFilters = useMemo(() => new Set(activeFilterOrder), [activeFilterOrder]);
+  const [places, setPlaces] = useState<PlaceMarker[]>([]);
+  const [routeCoordinates, setRouteCoordinates] = useState<
+    { latitude: number; longitude: number }[]
+  >([]);
+  const [routeSummary, setRouteSummary] = useState<RouteSummary | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [reloadToken, setReloadToken] = useState(0);
+  const [trips, setTrips] = useState<TripSummary[]>([]);
+  const [selectedTripId, setSelectedTripId] = useState<string | null>(tripId ?? null);
+  const [savedPlaces, setSavedPlaces] = useState<SavedTripPlace[]>([]);
+  const [isLoadingSavedPlaces, setIsLoadingSavedPlaces] = useState(false);
+  const [isFinalizingItinerary, setIsFinalizingItinerary] = useState(false);
+  const [placeToSave, setPlaceToSave] = useState<PlaceMarker | null>(null);
+  const [choiceTripId, setChoiceTripId] = useState<string | null>(null);
+  const [scheduledDate, setScheduledDate] = useState(() => {
+    const tomorrow = new Date();
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    return tomorrow;
+  });
+  const [scheduledTime, setScheduledTime] = useState(() => {
+    const initial = new Date();
+    initial.setHours(9, 0, 0, 0);
+    return initial;
+  });
+  const [showDatePicker, setShowDatePicker] = useState(false);
+  const [showTimePicker, setShowTimePicker] = useState(false);
+  const [votingEnabled, setVotingEnabled] = useState(true);
+  const [isSavingPlace, setIsSavingPlace] = useState(false);
+  const [calendarChoices, setCalendarChoices] = useState<Calendar.Calendar[]>([]);
+  const [showCalendarPicker, setShowCalendarPicker] = useState(false);
+  const [isSyncingCalendar, setIsSyncingCalendar] = useState(false);
+  const [goals, setGoals] = useState<{ id: string; goal_text: string }[]>([]);
+  const [isLoadingGoals, setIsLoadingGoals] = useState(true);
+  const [goalError, setGoalError] = useState<string | null>(null);
+  const [goalToDelete, setGoalToDelete] = useState<string | null>(null);
+
+  const filterQuery = activeFilterOrder.slice().sort().join(',');
+
+  useEffect(() => {
+    let isCurrent = true;
+
+    async function loadMapData() {
+      setIsLoading(true);
+      setErrorMessage(null);
+      setRouteCoordinates([]);
+      setRouteSummary(null);
+
+      try {
+        const preferenceKeys = filterQuery
+          .split(',')
+          .filter(Boolean) as PreferenceKey[];
+        const nearby = await searchNearbyPlaces(MANILA_CENTER, preferenceKeys);
+
+        if (!isCurrent) {
+          return;
+        }
+
+        setPlaces(nearby.places);
+
+        const firstPlace = nearby.places[0];
+        if (firstPlace) {
+          const route = await computeRoute(MANILA_CENTER, firstPlace.location);
+
+          if (!isCurrent) {
+            return;
+          }
+
+          setRouteCoordinates(decodeGooglePolyline(route.encoded_polyline));
+          setRouteSummary({
+            distanceMeters: route.distance_meters,
+            durationSeconds: route.duration_seconds,
+          });
+        }
+      } catch (error) {
+        if (isCurrent) {
+          setErrorMessage(
+            error instanceof Error ? error.message : 'Unable to load Google Maps data.',
+          );
+        }
+      } finally {
+        if (isCurrent) {
+          setIsLoading(false);
+        }
+      }
+    }
+
+    void loadMapData();
+
+    return () => {
+      isCurrent = false;
+    };
+  }, [filterQuery, reloadToken]);
+
+  useEffect(() => {
+    let isCurrent = true;
+
+    async function loadTrips() {
+      try {
+        const availableTrips = await getTrips();
+        if (!isCurrent) {
+          return;
+        }
+        setTrips(availableTrips);
+        setSelectedTripId((current) =>
+          availableTrips.some((trip) => trip.id === current)
+            ? current
+            : availableTrips[0]?.id ?? null,
+        );
+      } catch (error) {
+        if (isCurrent) {
+          Alert.alert(
+            'Unable to load groups',
+            error instanceof Error ? error.message : 'Please try again.',
+          );
+        }
+      }
+    }
+
+    void loadTrips();
+    return () => {
+      isCurrent = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    let isCurrent = true;
+
+    async function loadSavedPlaces() {
+      if (!selectedTripId) {
+        setSavedPlaces([]);
+        return;
+      }
+
+      setIsLoadingSavedPlaces(true);
+      try {
+        const saved = await getTripPlaces(selectedTripId);
+        if (isCurrent) {
+          setSavedPlaces(saved);
+        }
+      } catch (error) {
+        if (isCurrent) {
+          Alert.alert(
+            'Unable to load saved places',
+            error instanceof Error ? error.message : 'Please try again.',
+          );
+        }
+      } finally {
+        if (isCurrent) {
+          setIsLoadingSavedPlaces(false);
+        }
+      }
+    }
+
+    void loadSavedPlaces();
+    return () => {
+      isCurrent = false;
+    };
+  }, [selectedTripId]);
+
+  useEffect(() => {
+    if (!selectedTripId) return;
+
+    let isCurrent = true;
+    let refreshTimer: ReturnType<typeof setTimeout> | null = null;
+    const refreshSavedPlaces = () => {
+      if (refreshTimer) clearTimeout(refreshTimer);
+      refreshTimer = setTimeout(() => {
+        void getTripPlaces(selectedTripId)
+          .then((saved) => {
+            if (isCurrent) setSavedPlaces(saved);
+          })
+          .catch(() => undefined);
+      }, 250);
+    };
+    const refreshGroupGoals = () => {
+      if (!isGroupMode) return;
+      void getGroupGoals(selectedTripId)
+        .then((updatedGoals) => {
+          if (isCurrent) setGoals(updatedGoals);
+        })
+        .catch(() => undefined);
+    };
+
+    const channel = supabase
+      .channel(`trip-updates:${selectedTripId}`)
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'trip_places',
+          filter: `trip_id=eq.${selectedTripId}`,
+        },
+        refreshSavedPlaces,
+      )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'votes' },
+        refreshSavedPlaces,
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'group_goals',
+          filter: `trip_id=eq.${selectedTripId}`,
+        },
+        refreshGroupGoals,
+      )
+      .subscribe();
+
+    return () => {
+      isCurrent = false;
+      if (refreshTimer) clearTimeout(refreshTimer);
+      void supabase.removeChannel(channel);
+    };
+  }, [isGroupMode, selectedTripId]);
+
+  useEffect(() => {
+    let isCurrent = true;
+
+    async function loadGoals() {
+      setIsLoadingGoals(true);
+      setGoalError(null);
+      try {
+        const persistedGoals =
+          isGroupMode && selectedTripId
+            ? await getGroupGoals(selectedTripId)
+            : await getTravelGoals();
+        if (isCurrent) {
+          setGoals(persistedGoals);
+        }
+      } catch (error) {
+        if (isCurrent) {
+          setGoalError(error instanceof Error ? error.message : 'Unable to load goals.');
+        }
+      } finally {
+        if (isCurrent) {
+          setIsLoadingGoals(false);
+        }
+      }
+    }
+
+    void loadGoals();
+    return () => {
+      isCurrent = false;
+    };
+  }, [isGroupMode, selectedTripId]);
 
   const toggleFilter = (id: string) => {
     setActiveFilterOrder((prev) => {
       if (prev.includes(id)) {
-        // Deselect — remove from order
         return prev.filter((x) => x !== id);
       } else if (prev.length < 4) {
-        // Select — append to end (preserves selection order)
         return [...prev, id];
       }
-      // At max (4) and trying to add → no-op
       return prev;
     });
+  };
+
+  const openSavePicker = (place: PlaceMarker) => {
+    if (trips.length === 0) {
+      Alert.alert('Create a group first', 'Add a group on the Home screen before saving places.');
+      return;
+    }
+    setChoiceTripId(selectedTripId ?? trips[0].id);
+    setVotingEnabled(true);
+    setPlaceToSave(place);
+  };
+
+  const handleSavePlace = async () => {
+    if (!placeToSave || !choiceTripId) {
+      return;
+    }
+
+    const choiceTrip = trips.find((trip) => trip.id === choiceTripId);
+    const canManageVoting =
+      choiceTrip?.current_user_role === 'owner' || choiceTrip?.current_user_role === 'admin';
+    setIsSavingPlace(true);
+    try {
+      await savePlaceToTrip(choiceTripId, placeToSave, {
+        scheduledDate: toDateValue(scheduledDate),
+        scheduledTime: toTimeValue(scheduledTime),
+        durationMinutes: 120,
+        votingEnabled: canManageVoting ? votingEnabled : true,
+      });
+      setSelectedTripId(choiceTripId);
+      setSavedPlaces(await getTripPlaces(choiceTripId));
+      setPlaceToSave(null);
+      setActiveTab('itinerary');
+      Alert.alert(
+        'Added to itinerary',
+        `${placeToSave.name} was scheduled for ${formatScheduledDate(toDateValue(scheduledDate))} at ${formatScheduledTime(toTimeValue(scheduledTime))}.`,
+      );
+    } catch (error) {
+      Alert.alert(
+        'Unable to save place',
+        error instanceof Error ? error.message : 'Please try again.',
+      );
+    } finally {
+      setIsSavingPlace(false);
+    }
+  };
+
+  const handleToggleVote = async (place: SavedTripPlace) => {
+    if (!selectedTripId) {
+      return;
+    }
+
+    try {
+      const updated = await setTripPlaceVote(
+        selectedTripId,
+        place.id,
+        !place.current_user_voted,
+      );
+      setSavedPlaces((current) =>
+        current.map((item) => (item.id === updated.id ? updated : item)),
+      );
+    } catch (error) {
+      Alert.alert(
+        'Unable to update vote',
+        error instanceof Error ? error.message : 'Please try again.',
+      );
+    }
+  };
+
+  const handleFinalizeItinerary = async () => {
+    if (!selectedTripId) {
+      return;
+    }
+
+    setIsFinalizingItinerary(true);
+    try {
+      await finalizeTripItinerary(selectedTripId);
+      setSavedPlaces(await getTripPlaces(selectedTripId));
+      Alert.alert(
+        'Itinerary finalized',
+        'All scheduled places are now confirmed and available for calendar sync.',
+      );
+    } catch (error) {
+      Alert.alert(
+        'Unable to finalize itinerary',
+        error instanceof Error ? error.message : 'Please try again.',
+      );
+    } finally {
+      setIsFinalizingItinerary(false);
+    }
+  };
+
+  const selectedTrip = trips.find((trip) => trip.id === selectedTripId);
+  const choiceTrip = trips.find((trip) => trip.id === choiceTripId);
+  const canChoiceTripManageVoting =
+    choiceTrip?.current_user_role === 'owner' || choiceTrip?.current_user_role === 'admin';
+  const scheduledPlaces = useMemo(
+    () =>
+      [...savedPlaces].sort((left, right) =>
+        `${left.scheduled_date}T${left.scheduled_time}`.localeCompare(
+          `${right.scheduled_date}T${right.scheduled_time}`,
+        ),
+      ),
+    [savedPlaces],
+  );
+  const confirmedPlaces = useMemo(
+    () => scheduledPlaces.filter((place) => place.is_confirmed),
+    [scheduledPlaces],
+  );
+
+  const handleDateChange = (_event: DateTimePickerEvent, value?: Date) => {
+    setShowDatePicker(false);
+    if (value) {
+      setScheduledDate(value);
+    }
+  };
+
+  const handleTimeChange = (_event: DateTimePickerEvent, value?: Date) => {
+    setShowTimePicker(false);
+    if (value) {
+      setScheduledTime(value);
+    }
+  };
+
+  const handleOpenCalendarPicker = async () => {
+    if (confirmedPlaces.length === 0) {
+      Alert.alert(
+        'Nothing ready to sync',
+        'Only orange places confirmed by all voters or finalized by the group leader can be synced.',
+      );
+      return;
+    }
+
+    try {
+      if (!(await Calendar.isAvailableAsync())) {
+        throw new Error('A system calendar is not available on this device.');
+      }
+      const permission = await Calendar.requestCalendarPermissionsAsync();
+      if (permission.status !== 'granted') {
+        throw new Error('Calendar permission is required to sync the itinerary.');
+      }
+      const calendars = await Calendar.getCalendarsAsync(Calendar.EntityTypes.EVENT);
+      const writableCalendars = calendars.filter((calendar) => calendar.allowsModifications);
+      if (writableCalendars.length === 0) {
+        throw new Error('Add a writable Google or device calendar, then try again.');
+      }
+      setCalendarChoices(writableCalendars);
+      setShowCalendarPicker(true);
+    } catch (error) {
+      Alert.alert(
+        'Unable to open calendars',
+        error instanceof Error ? error.message : 'Please try again.',
+      );
+    }
+  };
+
+  const handleSyncToCalendar = async (calendarId: string) => {
+    setShowCalendarPicker(false);
+    setIsSyncingCalendar(true);
+    try {
+      for (const place of confirmedPlaces) {
+        const startDate = new Date(`${place.scheduled_date}T${place.scheduled_time}`);
+        const endDate = new Date(
+          startDate.getTime() + place.duration_minutes * 60 * 1000,
+        );
+        await Calendar.createEventAsync(calendarId, {
+          title: place.name,
+          startDate,
+          endDate,
+          location: place.address ?? undefined,
+          notes: `${selectedTrip?.name ?? 'Travel App'} finalized itinerary`,
+        });
+      }
+      Alert.alert(
+        'Calendar synced',
+        `${confirmedPlaces.length} confirmed ${confirmedPlaces.length === 1 ? 'place was' : 'places were'} added.`,
+      );
+    } catch (error) {
+      Alert.alert(
+        'Unable to sync calendar',
+        error instanceof Error ? error.message : 'Please try again.',
+      );
+    } finally {
+      setIsSyncingCalendar(false);
+    }
   };
 
   // Ordered category list: active filters first (in selection order), then inactive in original order
@@ -118,78 +580,129 @@ export default function DiscoveryScreen() {
     setShowFilterPanel(false);
   }, []);
 
-  // TODO: Replace local mock filtering with recommendation API filtering
-  // TODO: Fetch recommendations using destination and active Discovery filters
-  const filteredPlaces = useMemo(() => {
-    if (activeFilters.size === 0) return MOCK_PLACES;
-    return MOCK_PLACES.filter((place) => activeFilters.has(place.categoryId));
-  }, [activeFilters]);
-
-  // --- Solo Goals (shared with Home) ---
-  const { goals, addGoal, removeGoal } = useSoloGoals();
-  const [goalToDelete, setGoalToDelete] = useState<string | null>(null);
-
-  const handleAddGoal = useCallback((text: string) => {
-    addGoal(text);
-  }, [addGoal]);
+  const handleAddGoal = useCallback(async (text: string) => {
+    try {
+      const goal =
+        isGroupMode && selectedTripId
+          ? await createGroupGoal(selectedTripId, text)
+          : await createTravelGoal(text);
+      setGoals((current) => [goal, ...current]);
+    } catch (error) {
+      Alert.alert(
+        'Unable to add goal',
+        error instanceof Error ? error.message : 'Please try again.',
+      );
+      throw error;
+    }
+  }, [isGroupMode, selectedTripId]);
 
   const handleLongPressGoal = useCallback((id: string) => {
     setGoalToDelete(id);
   }, []);
 
-  const handleConfirmDeleteGoal = useCallback(() => {
+  const handleConfirmDeleteGoal = useCallback(async () => {
     if (goalToDelete !== null) {
-      removeGoal(goalToDelete);
-      setGoalToDelete(null);
+      try {
+        if (isGroupMode && selectedTripId) {
+          await deleteGroupGoal(selectedTripId, goalToDelete);
+        } else {
+          await deleteTravelGoal(goalToDelete);
+        }
+        setGoals((current) => current.filter((goal) => goal.id !== goalToDelete));
+        setGoalToDelete(null);
+      } catch (error) {
+        Alert.alert(
+          'Unable to delete goal',
+          error instanceof Error ? error.message : 'Please try again.',
+        );
+      }
     }
-  }, [goalToDelete, removeGoal]);
+  }, [goalToDelete, isGroupMode, selectedTripId]);
 
   const handleCancelDeleteGoal = useCallback(() => {
     setGoalToDelete(null);
   }, []);
 
   const renderGoalItem = useCallback(
-    ({ item }: { item: SoloGoal }) => (
-      <TravelGoalCard text={item.text} onLongPress={() => handleLongPressGoal(item.id)} />
+    ({ item }: { item: { id: string; goal_text: string } }) => (
+      <TravelGoalCard text={item.goal_text} onLongPress={() => handleLongPressGoal(item.id)} />
     ),
     [handleLongPressGoal],
   );
 
-  const handleBack = () => {
-    router.back();
-  };
-
   return (
     <View style={styles.screen}>
-      {/* Map area placeholder */}
-      {/* TODO: Replace with real interactive map */}
-      <View style={[styles.mapArea, { paddingTop: insets.top + 12 }]}>
-        {/* Back button + search bar overlaid on map */}
+      <View style={styles.mapArea}>
+        <MapView
+          initialRegion={{
+            ...MANILA_CENTER,
+            latitudeDelta: 0.12,
+            longitudeDelta: 0.12,
+          }}
+          style={StyleSheet.absoluteFillObject}
+        >
+          <Marker coordinate={MANILA_CENTER} pinColor={AutumnColors.primary} title="Manila" />
+          {places.map((place) => (
+            <Marker
+              coordinate={place.location}
+              description={place.address ?? undefined}
+              key={place.place_id}
+              title={place.name}
+            />
+          ))}
+          {routeCoordinates.length > 1 && (
+            <Polyline
+              coordinates={routeCoordinates}
+              strokeColor={AutumnColors.primary}
+              strokeWidth={5}
+            />
+          )}
+        </MapView>
+
         <View style={[styles.mapOverlay, { top: insets.top + 12 }]}>
           <TouchableOpacity
-            onPress={handleBack}
+            onPress={() => router.back()}
             accessibilityRole="button"
             accessibilityLabel="Go back"
             style={styles.backButton}
           >
-            {/* TODO: Replace with final Figma back-arrow SVG */}
-            <View style={styles.backIconPlaceholder} />
+            <Text style={styles.backText}>‹</Text>
           </TouchableOpacity>
 
           <View style={styles.searchPill}>
-            {/* TODO: Resolve destination using Maps/Places API */}
             <TextInput
               style={styles.searchInput}
-              value={destination ?? ''}
+              value={destination || 'Manila'}
               editable={false}
-              placeholder="Where do you want to go"
-              placeholderTextColor={AutumnColors.body}
               accessibilityLabel="Destination"
             />
           </View>
         </View>
 
-        <Text style={styles.mapPlaceholderText}>MAP PLACEHOLDER</Text>
+        {isLoading && (
+          <View style={styles.mapStatus}>
+            <ActivityIndicator color={AutumnColors.primary} />
+            <Text style={styles.mapStatusText}>Loading live places and route…</Text>
+          </View>
+        )}
+
+        {!isLoading && errorMessage && (
+          <View style={styles.errorCard}>
+            <Text style={styles.errorText}>{errorMessage}</Text>
+            <TouchableOpacity onPress={() => setReloadToken((value) => value + 1)}>
+              <Text style={styles.retryText}>Retry</Text>
+            </TouchableOpacity>
+          </View>
+        )}
+
+        {!isLoading && routeSummary && (
+          <View style={styles.routeBadge}>
+            <Text style={styles.routeBadgeText}>
+              {(routeSummary.distanceMeters / 1000).toFixed(1)} km ·{' '}
+              {Math.ceil(routeSummary.durationSeconds / 60)} min
+            </Text>
+          </View>
+        )}
       </View>
 
       {/* Draggable bottom sheet */}
@@ -213,7 +726,6 @@ export default function DiscoveryScreen() {
           />
         </View>
 
-        {/* Content based on active tab */}
         {activeTab === 'preferences' && (
           <View style={styles.preferencesContent}>
             {/* Filter row — button + all category chips (horizontally scrollable) */}
@@ -228,7 +740,6 @@ export default function DiscoveryScreen() {
                 {/* TODO: Replace with final Figma filter SVG icon */}
                 <View style={styles.filterIconPlaceholder} />
               </TouchableOpacity>
-
               <ScrollView
                 horizontal
                 showsHorizontalScrollIndicator={false}
@@ -246,17 +757,18 @@ export default function DiscoveryScreen() {
               </ScrollView>
             </View>
 
-            {/* Place cards */}
             <FlatList
-              data={filteredPlaces}
-              keyExtractor={(item) => item.id}
+              data={places}
+              keyExtractor={(item) => item.place_id}
               renderItem={({ item }) => (
                 <PlaceCard
-                  category={item.category}
+                  category={formatPlaceType(item.primary_type)}
                   name={item.name}
-                  location={item.location}
+                  location={item.address ?? 'Address unavailable'}
                   rating={item.rating}
-                  status={item.status}
+                  status="Live Google result"
+                  actionLabel={`Save ${item.name} to a group`}
+                  onActionPress={() => openSavePicker(item)}
                 />
               )}
               contentContainerStyle={styles.placeList}
@@ -264,24 +776,186 @@ export default function DiscoveryScreen() {
               nestedScrollEnabled
               ItemSeparatorComponent={() => <View style={styles.placeSeparator} />}
               ListEmptyComponent={
-                <View style={styles.emptySection}>
-                  <Text style={styles.emptyTitle}>No matches</Text>
-                  <Text style={styles.emptyDescription}>
-                    Try adjusting your filters to see more places.
-                  </Text>
-                </View>
+                !isLoading ? (
+                  <View style={styles.emptySection}>
+                    <Text style={styles.emptyTitle}>No matches</Text>
+                    <Text style={styles.emptyDescription}>
+                      Try adjusting your filters to see more places.
+                    </Text>
+                  </View>
+                ) : null
               }
             />
           </View>
         )}
 
         {activeTab === 'itinerary' && (
-          <View style={styles.emptySection}>
-            {/* TODO: Connect Discovery itinerary to persisted itinerary data */}
-            <Text style={styles.emptyTitle}>No plans yet!</Text>
-            <Text style={styles.emptyDescription}>
-              Save places to start building your trip.
-            </Text>
+          <View style={styles.savedPlacesContent}>
+            {trips.length > 0 && (
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={styles.tripChips}
+              >
+                {trips.map((trip) => (
+                  <PreferenceFilterChip
+                    key={trip.id}
+                    label={trip.name}
+                    active={trip.id === selectedTripId}
+                    onPress={() => setSelectedTripId(trip.id)}
+                  />
+                ))}
+              </ScrollView>
+            )}
+
+            {isLoadingSavedPlaces ? (
+              <View style={styles.emptySection}>
+                <ActivityIndicator color={AutumnColors.primary} />
+                <Text style={styles.emptyDescription}>Loading saved places...</Text>
+              </View>
+            ) : savedPlaces.length === 0 ? (
+              <View style={styles.emptySection}>
+                <Text style={styles.emptyTitle}>No saved places yet!</Text>
+                <Text style={styles.emptyDescription}>
+                  Save a recommendation, then vote on it with your group.
+                </Text>
+              </View>
+            ) : (
+              <ScrollView
+                contentContainerStyle={styles.itineraryContent}
+                showsVerticalScrollIndicator={false}
+                nestedScrollEnabled
+              >
+                <View style={styles.timelineLegend}>
+                  <View style={styles.legendItem}>
+                    <View style={[styles.legendDot, styles.confirmedBackground]} />
+                    <Text style={styles.legendText}>Confirmed</Text>
+                  </View>
+                  <View style={styles.legendItem}>
+                    <View style={[styles.legendDot, styles.pendingBackground]} />
+                    <Text style={styles.legendText}>Waiting for decision</Text>
+                  </View>
+                </View>
+
+                {(selectedTrip?.current_user_role === 'owner' ||
+                  selectedTrip?.current_user_role === 'admin') &&
+                !scheduledPlaces.every((place) => place.is_confirmed) ? (
+                  <TouchableOpacity
+                    accessibilityRole="button"
+                    accessibilityLabel="Finalize all scheduled places"
+                    disabled={isFinalizingItinerary}
+                    onPress={() => void handleFinalizeItinerary()}
+                    style={[
+                      styles.finalizeButton,
+                      isFinalizingItinerary && styles.actionButtonDisabled,
+                    ]}
+                  >
+                    {isFinalizingItinerary ? (
+                      <ActivityIndicator color="#FFFFFF" />
+                    ) : (
+                      <Text style={styles.finalizeButtonText}>
+                        Finalize all scheduled places
+                      </Text>
+                    )}
+                  </TouchableOpacity>
+                ) : selectedTrip?.current_user_role === 'member' ? (
+                  <Text style={styles.itineraryHelperText}>
+                    Places turn orange after every member votes, or when the group leader
+                    finalizes the schedule.
+                  </Text>
+                ) : null}
+
+                <View style={styles.timeline}>
+                  {scheduledPlaces.map((item, index) => (
+                    <View key={item.id} style={styles.timelineRow}>
+                      <View style={styles.timelineTimeColumn}>
+                        <Text style={styles.timelineDate}>
+                          {formatScheduledDate(item.scheduled_date)}
+                        </Text>
+                        <Text style={styles.timelineTime}>
+                          {formatScheduledTime(item.scheduled_time)}
+                        </Text>
+                      </View>
+                      <View style={styles.timelineRail}>
+                        <View
+                          style={[
+                            styles.timelineDot,
+                            item.is_confirmed
+                              ? styles.confirmedBackground
+                              : styles.pendingBackground,
+                          ]}
+                        />
+                        {index < scheduledPlaces.length - 1 && (
+                          <View
+                            style={[
+                              styles.timelineLine,
+                              item.is_confirmed
+                                ? styles.confirmedBackground
+                                : styles.pendingBackground,
+                            ]}
+                          />
+                        )}
+                      </View>
+                      <View
+                        style={[
+                          styles.timelineCard,
+                          item.is_confirmed
+                            ? styles.confirmedCard
+                            : styles.pendingCard,
+                        ]}
+                      >
+                        <Text style={styles.timelinePlaceName}>{item.name}</Text>
+                        <Text style={styles.timelinePlaceType}>
+                          {formatPlaceType(item.primary_type)} · {item.duration_minutes} min
+                        </Text>
+                        <Text style={styles.timelineVoteStatus}>
+                          {item.is_confirmed
+                            ? 'Confirmed · ready for calendar'
+                            : `${item.vote_count}/${item.required_vote_count} group votes`}
+                        </Text>
+                        {item.voting_enabled ? (
+                          <TouchableOpacity
+                            accessibilityRole="button"
+                            accessibilityLabel={
+                              item.current_user_voted ? 'Remove vote' : 'Vote for place'
+                            }
+                            onPress={() => void handleToggleVote(item)}
+                            style={styles.voteButton}
+                          >
+                            <Text style={styles.voteButtonText}>
+                              {item.current_user_voted ? 'Remove vote' : 'Vote for place'}
+                            </Text>
+                          </TouchableOpacity>
+                        ) : (
+                          <Text style={styles.leaderDecisionText}>Leader decision</Text>
+                        )}
+                      </View>
+                    </View>
+                  ))}
+                </View>
+
+                <TouchableOpacity
+                  accessibilityRole="button"
+                  accessibilityLabel="Sync confirmed places to calendar"
+                  disabled={confirmedPlaces.length === 0 || isSyncingCalendar}
+                  onPress={() => void handleOpenCalendarPicker()}
+                  style={[
+                    styles.calendarButton,
+                    (confirmedPlaces.length === 0 || isSyncingCalendar) &&
+                      styles.calendarButtonDisabled,
+                  ]}
+                >
+                  {isSyncingCalendar ? (
+                    <ActivityIndicator color={AutumnColors.heading} />
+                  ) : (
+                    <Text style={styles.calendarButtonText}>
+                      Sync {confirmedPlaces.length} confirmed{' '}
+                      {confirmedPlaces.length === 1 ? 'place' : 'places'} to calendar
+                    </Text>
+                  )}
+                </TouchableOpacity>
+              </ScrollView>
+            )}
           </View>
         )}
 
@@ -289,10 +963,23 @@ export default function DiscoveryScreen() {
           <View style={styles.goalsContainer}>
             <TravelGoalInput onAdd={handleAddGoal} />
 
-            {goals.length === 0 ? (
+            {isLoadingGoals ? (
+              <View style={styles.emptySection}>
+                <ActivityIndicator color={AutumnColors.primary} />
+                <Text style={styles.emptyDescription}>Loading goals...</Text>
+              </View>
+            ) : goalError ? (
+              <View style={styles.emptySection}>
+                <Text style={styles.emptyDescription}>{goalError}</Text>
+              </View>
+            ) : goals.length === 0 ? (
               <EmptyState
-                title="No travel goals yet!"
-                description="Add a goal for your next adventure."
+                title={isGroupMode ? 'No group goals yet!' : 'No travel goals yet!'}
+                description={
+                  isGroupMode
+                    ? 'Add a shared challenge for this group.'
+                    : 'Add a goal for your next adventure.'
+                }
               />
             ) : (
               <FlatList
@@ -309,7 +996,6 @@ export default function DiscoveryScreen() {
         )}
       </DiscoveryBottomSheet>
 
-      {/* Discovery Filter Panel Modal */}
       <DiscoveryFilterPanel
         visible={showFilterPanel}
         currentFilters={activeFilters}
@@ -317,7 +1003,183 @@ export default function DiscoveryScreen() {
         onCancel={handleCancelFilterPanel}
       />
 
-      {/* Clear Goal Confirmation Modal */}
+      <Modal
+        visible={placeToSave !== null}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setPlaceToSave(null)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalCard}>
+            <Text style={styles.modalTitle}>Preferences – Choices</Text>
+            <Text style={styles.modalDescription} numberOfLines={2}>
+              {placeToSave?.name}
+            </Text>
+            <Text style={styles.choiceLabel}>Add to group</Text>
+            <View style={styles.modalTripList}>
+              {trips.map((trip) => (
+                <TouchableOpacity
+                  key={trip.id}
+                  disabled={isSavingPlace}
+                  onPress={() => {
+                    setChoiceTripId(trip.id);
+                    setVotingEnabled(true);
+                  }}
+                  style={[
+                    styles.modalTripButton,
+                    trip.id === choiceTripId && styles.modalTripButtonSelected,
+                  ]}
+                >
+                  <Text
+                    style={[
+                      styles.modalTripText,
+                      trip.id === choiceTripId && styles.modalTripTextSelected,
+                    ]}
+                  >
+                    {trip.name}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+            <View style={styles.choicePanel}>
+              <TouchableOpacity
+                accessibilityRole="button"
+                accessibilityLabel="Select itinerary date"
+                onPress={() => setShowDatePicker(true)}
+                style={styles.choiceRow}
+              >
+                <Text style={styles.choiceRowIcon}>▣</Text>
+                <View style={styles.choiceRowContent}>
+                  <Text style={styles.choiceRowLabel}>Select Date</Text>
+                  <Text style={styles.choiceRowValue}>
+                    {formatScheduledDate(toDateValue(scheduledDate))}
+                  </Text>
+                </View>
+                <Text style={styles.choiceChevron}>⌄</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                accessibilityRole="button"
+                accessibilityLabel="Select itinerary time"
+                onPress={() => setShowTimePicker(true)}
+                style={styles.choiceRow}
+              >
+                <Text style={styles.choiceRowIcon}>◷</Text>
+                <View style={styles.choiceRowContent}>
+                  <Text style={styles.choiceRowLabel}>Select Time</Text>
+                  <Text style={styles.choiceRowValue}>
+                    {formatScheduledTime(toTimeValue(scheduledTime))}
+                  </Text>
+                </View>
+                <Text style={styles.choiceChevron}>⌄</Text>
+              </TouchableOpacity>
+
+              {canChoiceTripManageVoting ? (
+                <View style={styles.votingRow}>
+                  <View style={styles.votingCopy}>
+                    <Text style={styles.votingTitle}>Group Voting</Text>
+                    <Text style={styles.votingDescription}>
+                      Let group members vote on this destination.
+                    </Text>
+                  </View>
+                  <Switch
+                    accessibilityLabel="Enable group voting"
+                    value={votingEnabled}
+                    onValueChange={setVotingEnabled}
+                    trackColor={{ false: '#C8C8C8', true: AutumnColors.secondaryAccent }}
+                    thumbColor="#FFFFFF"
+                  />
+                </View>
+              ) : (
+                <Text style={styles.memberVotingNote}>
+                  Group voting is enabled. Only the group leader can change this option.
+                </Text>
+              )}
+            </View>
+
+            {showDatePicker && (
+              <DateTimePicker
+                value={scheduledDate}
+                mode="date"
+                minimumDate={new Date()}
+                onChange={handleDateChange}
+              />
+            )}
+            {showTimePicker && (
+              <DateTimePicker
+                value={scheduledTime}
+                mode="time"
+                onChange={handleTimeChange}
+              />
+            )}
+            <TouchableOpacity
+              disabled={isSavingPlace || choiceTripId === null}
+              onPress={() => void handleSavePlace()}
+              style={[
+                styles.modalAddButton,
+                (isSavingPlace || choiceTripId === null) && styles.actionButtonDisabled,
+              ]}
+            >
+              {isSavingPlace ? (
+                <ActivityIndicator color="#FFFFFF" />
+              ) : (
+                <Text style={styles.modalAddButtonText}>Add to Itinerary</Text>
+              )}
+            </TouchableOpacity>
+            <TouchableOpacity
+              disabled={isSavingPlace}
+              onPress={() => setPlaceToSave(null)}
+              style={styles.modalCancelButton}
+            >
+              <Text style={styles.modalCancelText}>
+                {isSavingPlace ? 'Saving...' : 'Cancel'}
+              </Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
+      <Modal
+        visible={showCalendarPicker}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowCalendarPicker(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalCard}>
+            <Text style={styles.modalTitle}>Choose a calendar</Text>
+            <Text style={styles.modalDescription}>
+              Only the {confirmedPlaces.length} orange confirmed{' '}
+              {confirmedPlaces.length === 1 ? 'place' : 'places'} will be added.
+            </Text>
+            <View style={styles.calendarChoices}>
+              {calendarChoices.map((calendar) => (
+                <TouchableOpacity
+                  key={calendar.id}
+                  onPress={() => void handleSyncToCalendar(calendar.id)}
+                  style={styles.calendarChoice}
+                >
+                  <View
+                    style={[styles.calendarColor, { backgroundColor: calendar.color }]}
+                  />
+                  <View style={styles.calendarChoiceCopy}>
+                    <Text style={styles.calendarChoiceTitle}>{calendar.title}</Text>
+                    <Text style={styles.calendarChoiceSource}>
+                      {calendar.source?.name ?? 'Device calendar'}
+                    </Text>
+                  </View>
+                </TouchableOpacity>
+              ))}
+            </View>
+            <TouchableOpacity
+              onPress={() => setShowCalendarPicker(false)}
+              style={styles.modalCancelButton}
+            >
+              <Text style={styles.modalCancelText}>Cancel</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
       <Modal
         visible={goalToDelete !== null}
         transparent
@@ -355,16 +1217,26 @@ export default function DiscoveryScreen() {
   );
 }
 
+function formatPlaceType(value: string | null) {
+  if (!value) {
+    return 'Place';
+  }
+
+  return value
+    .split('_')
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(' ');
+}
+
 const styles = StyleSheet.create({
   screen: {
     flex: 1,
     backgroundColor: AutumnColors.heading,
   },
-
-  /* Map area */
   mapArea: {
     flex: 1,
-    backgroundColor: '#3A5A40',
+    minHeight: '45%',
+    backgroundColor: '#EDE9E0',
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -376,21 +1248,19 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 10,
-    zIndex: 1,
   },
   backButton: {
     width: 36,
     height: 36,
     borderRadius: 18,
-    backgroundColor: 'rgba(255,255,255,0.9)',
+    backgroundColor: 'rgba(255,255,255,0.95)',
     alignItems: 'center',
     justifyContent: 'center',
   },
-  backIconPlaceholder: {
-    width: 16,
-    height: 16,
-    borderRadius: 3,
-    backgroundColor: AutumnColors.chipBorder,
+  backText: {
+    color: AutumnColors.heading,
+    fontSize: 30,
+    lineHeight: 32,
   },
   searchPill: {
     flex: 1,
@@ -405,12 +1275,51 @@ const styles = StyleSheet.create({
     color: AutumnColors.chipText,
     padding: 0,
   },
-  mapPlaceholderText: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: 'rgba(255,255,255,0.6)',
+  mapStatus: {
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderRadius: 12,
+    backgroundColor: 'rgba(255,255,255,0.95)',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
   },
-
+  mapStatusText: {
+    color: AutumnColors.heading,
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  errorCard: {
+    marginHorizontal: 24,
+    padding: 14,
+    borderRadius: 12,
+    backgroundColor: 'rgba(255,255,255,0.96)',
+    alignItems: 'center',
+    gap: 6,
+  },
+  errorText: {
+    color: '#A52235',
+    fontSize: 12,
+    textAlign: 'center',
+  },
+  retryText: {
+    color: AutumnColors.primary,
+    fontSize: 13,
+    fontWeight: '700',
+  },
+  routeBadge: {
+    position: 'absolute',
+    bottom: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 18,
+    backgroundColor: AutumnColors.primary,
+  },
+  routeBadgeText: {
+    color: '#FFFFFF',
+    fontSize: 12,
+    fontWeight: '700',
+  },
   /* Tabs */
   tabRow: {
     flexDirection: 'row',
@@ -418,15 +1327,270 @@ const styles = StyleSheet.create({
     gap: 8,
     marginBottom: 14,
   },
-
-  /* Preferences content */
   preferencesContent: {
     flexShrink: 1,
+  },
+  savedPlacesContent: {
+    flex: 1,
+  },
+  tripChips: {
+    gap: 8,
+    paddingBottom: 12,
+  },
+  itineraryContent: {
+    paddingBottom: 16,
+  },
+  finalizeButton: {
+    minHeight: 48,
+    borderRadius: 24,
+    backgroundColor: AutumnColors.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 12,
+  },
+  actionButtonDisabled: {
+    opacity: 0.65,
+  },
+  finalizeButtonText: {
+    color: '#FFFFFF',
+    fontSize: 14,
+    fontWeight: '700',
+  },
+  itineraryHelperText: {
+    color: AutumnColors.body,
+    fontSize: 13,
+    lineHeight: 19,
+    textAlign: 'center',
+    marginBottom: 14,
+  },
+  timelineLegend: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    gap: 18,
+    marginBottom: 12,
+  },
+  legendItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  legendDot: {
+    width: 9,
+    height: 9,
+    borderRadius: 5,
+  },
+  legendText: {
+    color: AutumnColors.body,
+    fontSize: 11,
+  },
+  confirmedBackground: {
+    backgroundColor: AutumnColors.autumnAccent,
+  },
+  pendingBackground: {
+    backgroundColor: '#8D9488',
+  },
+  timeline: {
+    paddingTop: 4,
+  },
+  timelineRow: {
+    flexDirection: 'row',
+    alignItems: 'stretch',
+    minHeight: 112,
+  },
+  timelineTimeColumn: {
+    width: 74,
+    paddingTop: 14,
+    paddingRight: 6,
+  },
+  timelineDate: {
+    color: AutumnColors.body,
+    fontSize: 10,
+    lineHeight: 14,
+  },
+  timelineTime: {
+    color: AutumnColors.heading,
+    fontSize: 12,
+    fontWeight: '700',
+    marginTop: 2,
+  },
+  timelineRail: {
+    width: 18,
+    alignItems: 'center',
+  },
+  timelineDot: {
+    width: 9,
+    height: 9,
+    borderRadius: 5,
+    marginTop: 20,
+  },
+  timelineLine: {
+    width: 2,
+    flex: 1,
+    marginBottom: -1,
+  },
+  timelineCard: {
+    flex: 1,
+    minHeight: 96,
+    borderRadius: 14,
+    borderWidth: 1,
+    padding: 12,
+    marginBottom: 12,
+  },
+  confirmedCard: {
+    borderColor: AutumnColors.autumnAccent,
+    backgroundColor: '#FFF7ED',
+  },
+  pendingCard: {
+    borderColor: '#B9BDB6',
+    backgroundColor: '#F4F2ED',
+  },
+  timelinePlaceName: {
+    color: AutumnColors.heading,
+    fontSize: 14,
+    fontWeight: '700',
+  },
+  timelinePlaceType: {
+    color: AutumnColors.body,
+    fontSize: 11,
+    marginTop: 2,
+  },
+  timelineVoteStatus: {
+    color: AutumnColors.body,
+    fontSize: 11,
+    fontWeight: '600',
+    marginTop: 6,
+  },
+  voteButton: {
+    alignSelf: 'flex-end',
+    borderRadius: 14,
+    backgroundColor: AutumnColors.primary,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    marginTop: 7,
+  },
+  voteButtonText: {
+    color: '#FFFFFF',
+    fontSize: 10,
+    fontWeight: '700',
+  },
+  leaderDecisionText: {
+    alignSelf: 'flex-end',
+    color: AutumnColors.autumnAccent,
+    fontSize: 11,
+    fontWeight: '700',
+    marginTop: 7,
+  },
+  calendarButton: {
+    minHeight: 44,
+    borderRadius: 22,
+    backgroundColor: '#D9D9D9',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 4,
+    marginBottom: 16,
+    paddingHorizontal: 14,
+  },
+  calendarButtonDisabled: {
+    opacity: 0.5,
+  },
+  calendarButtonText: {
+    color: AutumnColors.heading,
+    fontSize: 12,
+    fontWeight: '700',
+    textAlign: 'center',
+  },
+  planSection: {
+    marginBottom: 18,
+  },
+  planTitle: {
+    color: AutumnColors.heading,
+    fontSize: 19,
+    fontWeight: '700',
+    marginBottom: 6,
+  },
+  planSummary: {
+    color: AutumnColors.body,
+    fontSize: 13,
+    lineHeight: 19,
+  },
+  planDates: {
+    color: AutumnColors.primary,
+    fontSize: 12,
+    fontWeight: '700',
+    marginTop: 8,
+    marginBottom: 14,
+  },
+  itineraryDay: {
+    marginBottom: 14,
+  },
+  itineraryDayTitle: {
+    color: AutumnColors.heading,
+    fontSize: 15,
+    fontWeight: '700',
+    marginBottom: 8,
+  },
+  itineraryItem: {
+    flexDirection: 'row',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: AutumnColors.chipBorder,
+    backgroundColor: AutumnColors.chipBackground,
+    padding: 12,
+    marginBottom: 8,
+  },
+  itineraryTimeColumn: {
+    width: 66,
+    paddingRight: 10,
+  },
+  itineraryTime: {
+    color: AutumnColors.primary,
+    fontSize: 15,
+    fontWeight: '700',
+  },
+  itineraryDuration: {
+    color: AutumnColors.body,
+    fontSize: 11,
+    marginTop: 3,
+  },
+  itineraryPlaceColumn: {
+    flex: 1,
+  },
+  itineraryPlaceName: {
+    color: AutumnColors.heading,
+    fontSize: 14,
+    fontWeight: '700',
+  },
+  itineraryPlaceAddress: {
+    color: AutumnColors.body,
+    fontSize: 12,
+    lineHeight: 17,
+    marginTop: 2,
+  },
+  itineraryTravelTime: {
+    color: AutumnColors.autumnAccent,
+    fontSize: 11,
+    fontWeight: '600',
+    marginTop: 5,
+  },
+  itineraryNotes: {
+    color: AutumnColors.body,
+    fontSize: 12,
+    fontStyle: 'italic',
+    lineHeight: 17,
+    marginTop: 5,
+  },
+  savedPlacesTitle: {
+    color: AutumnColors.heading,
+    fontSize: 15,
+    fontWeight: '700',
+    marginBottom: 10,
+  },
+  savedPlaceItem: {
+    marginBottom: 10,
   },
   filterRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
     marginBottom: 14,
   },
   filterButton: {
@@ -455,8 +1619,6 @@ const styles = StyleSheet.create({
   placeSeparator: {
     height: 10,
   },
-
-  /* Empty sections */
   emptySection: {
     alignItems: 'center',
     justifyContent: 'center',
@@ -476,8 +1638,147 @@ const styles = StyleSheet.create({
     color: AutumnColors.body,
     textAlign: 'center',
     lineHeight: 18,
+    paddingVertical: 12,
   },
-
+  modalTripList: {
+    gap: 10,
+    marginBottom: 14,
+  },
+  modalTripButton: {
+    borderRadius: 12,
+    backgroundColor: AutumnColors.chipBackground,
+    borderWidth: 1,
+    borderColor: AutumnColors.chipBorder,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+  },
+  modalTripButtonSelected: {
+    backgroundColor: AutumnColors.secondaryAccent,
+    borderColor: AutumnColors.secondaryAccent,
+  },
+  modalTripText: {
+    color: AutumnColors.chipText,
+    fontSize: 14,
+    fontWeight: '600',
+    textAlign: 'center',
+  },
+  modalTripTextSelected: {
+    color: '#FFFFFF',
+  },
+  choiceLabel: {
+    color: AutumnColors.heading,
+    fontSize: 12,
+    fontWeight: '700',
+    marginBottom: 7,
+  },
+  choicePanel: {
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: AutumnColors.chipBorder,
+    backgroundColor: AutumnColors.chipBackground,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    marginBottom: 14,
+  },
+  choiceRow: {
+    minHeight: 52,
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderBottomWidth: 1,
+    borderBottomColor: AutumnColors.chipBorder,
+  },
+  choiceRowIcon: {
+    width: 24,
+    color: AutumnColors.heading,
+    fontSize: 16,
+  },
+  choiceRowContent: {
+    flex: 1,
+  },
+  choiceRowLabel: {
+    color: AutumnColors.body,
+    fontSize: 10,
+  },
+  choiceRowValue: {
+    color: AutumnColors.heading,
+    fontSize: 13,
+    fontWeight: '600',
+    marginTop: 2,
+  },
+  choiceChevron: {
+    color: AutumnColors.heading,
+    fontSize: 18,
+  },
+  votingRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingTop: 10,
+  },
+  votingCopy: {
+    flex: 1,
+    paddingRight: 10,
+  },
+  votingTitle: {
+    color: AutumnColors.heading,
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  votingDescription: {
+    color: AutumnColors.body,
+    fontSize: 10,
+    lineHeight: 14,
+    marginTop: 2,
+  },
+  memberVotingNote: {
+    color: AutumnColors.body,
+    fontSize: 10,
+    lineHeight: 14,
+    paddingTop: 10,
+  },
+  modalAddButton: {
+    minHeight: 44,
+    borderRadius: 22,
+    backgroundColor: AutumnColors.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 10,
+  },
+  modalAddButtonText: {
+    color: '#FFFFFF',
+    fontSize: 13,
+    fontWeight: '700',
+  },
+  calendarChoices: {
+    gap: 8,
+    marginBottom: 14,
+  },
+  calendarChoice: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: AutumnColors.chipBorder,
+    padding: 12,
+  },
+  calendarColor: {
+    width: 14,
+    height: 14,
+    borderRadius: 7,
+    marginRight: 10,
+  },
+  calendarChoiceCopy: {
+    flex: 1,
+  },
+  calendarChoiceTitle: {
+    color: AutumnColors.heading,
+    fontSize: 13,
+    fontWeight: '700',
+  },
+  calendarChoiceSource: {
+    color: AutumnColors.body,
+    fontSize: 11,
+    marginTop: 2,
+  },
   /* Goals */
   goalsContainer: {
     flexShrink: 1,

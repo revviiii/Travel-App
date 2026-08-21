@@ -1,15 +1,22 @@
 import { Ionicons } from '@expo/vector-icons';
-import { router } from 'expo-router';
+import { router, type RelativePathString } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
-import { useState } from 'react';
-import { Alert, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { useEffect, useState } from 'react';
+import {
+  ActivityIndicator,
+  Alert,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+} from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { AutumnColors } from '@/constants/colors';
 import { PROFILE_TRAVEL_PREFERENCES } from '@/constants/preferences';
 import { PreferenceChip } from '@/components/onboarding/PreferenceChip';
 import { usePreferences } from '@/contexts/PreferenceContext';
-
-const DEFAULT_PREFERENCES = ['adventure', 'wine', 'nature-escapes', 'food-tourism'];
+import { getMyPreferences, replaceMyPreferences } from '@/lib/api';
 
 export default function TravelPreferencesScreen() {
   const insets = useSafeAreaInsets();
@@ -17,12 +24,39 @@ export default function TravelPreferencesScreen() {
   const [draftPreferences, setDraftPreferences] = useState<Set<string>>(() => {
     const availableIds = new Set(PROFILE_TRAVEL_PREFERENCES.map((item) => item.id));
     const currentProfilePreferences = [...selectedPreferences].filter((id) => availableIds.has(id));
-    return new Set(currentProfilePreferences.length ? currentProfilePreferences : DEFAULT_PREFERENCES);
+    return new Set(currentProfilePreferences);
   });
+  const [isLoading, setIsLoading] = useState(true);
+  const [isSaving, setIsSaving] = useState(false);
+
+  useEffect(() => {
+    let isCurrent = true;
+    getMyPreferences()
+      .then((preferences) => {
+        if (!isCurrent) return;
+        setDraftPreferences(new Set(preferences.slice(0, maxPreferences)));
+        setPreferences(preferences);
+      })
+      .catch((error) => {
+        if (isCurrent) {
+          Alert.alert(
+            'Unable to load preferences',
+            error instanceof Error ? error.message : 'Please try again.',
+          );
+        }
+      })
+      .finally(() => {
+        if (isCurrent) setIsLoading(false);
+      });
+
+    return () => {
+      isCurrent = false;
+    };
+  }, [maxPreferences, setPreferences]);
 
   const handleBack = () => {
     if (router.canGoBack()) router.back();
-    else router.replace('/Userprofile');
+    else router.replace('/Userprofile' as RelativePathString);
   };
 
   const togglePreference = (id: string) => {
@@ -39,9 +73,21 @@ export default function TravelPreferencesScreen() {
     });
   };
 
-  const handleSave = () => {
-    setPreferences(draftPreferences);
-    Alert.alert('Preferences saved', 'Your travel preferences have been updated.');
+  const handleSave = async () => {
+    setIsSaving(true);
+    try {
+      const saved = await replaceMyPreferences([...draftPreferences]);
+      setPreferences(saved);
+      setDraftPreferences(new Set(saved));
+      Alert.alert('Preferences saved', 'Your travel preferences have been updated.');
+    } catch (error) {
+      Alert.alert(
+        'Unable to save preferences',
+        error instanceof Error ? error.message : 'Please try again.',
+      );
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   return (
@@ -94,7 +140,7 @@ export default function TravelPreferencesScreen() {
             {draftPreferences.size} / {maxPreferences} selected
           </Text>
 
-          <View style={styles.grid}>
+          {isLoading ? <ActivityIndicator color={AutumnColors.primary} /> : <View style={styles.grid}>
             {PROFILE_TRAVEL_PREFERENCES.map((preference) => (
               <PreferenceChip
                 key={preference.id}
@@ -104,7 +150,7 @@ export default function TravelPreferencesScreen() {
                 selected={draftPreferences.has(preference.id)}
               />
             ))}
-          </View>
+          </View>}
         </ScrollView>
 
         <View
@@ -121,10 +167,11 @@ export default function TravelPreferencesScreen() {
             accessibilityLabel="Save travel preferences"
             accessibilityRole="button"
             activeOpacity={0.85}
-            onPress={handleSave}
+            disabled={isLoading || isSaving}
+            onPress={() => void handleSave()}
             style={styles.saveButton}
           >
-            <Text style={styles.saveText}>Save</Text>
+            {isSaving ? <ActivityIndicator color="#FFFFFF" /> : <Text style={styles.saveText}>Save</Text>}
           </TouchableOpacity>
         </View>
       </View>

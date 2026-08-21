@@ -1,7 +1,7 @@
-import { Image } from 'expo-image';
-import { useRouter, type RelativePathString } from 'expo-router';
-import { useState, useCallback } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import {
+  ActivityIndicator,
+  Alert,
   FlatList,
   Modal,
   StyleSheet,
@@ -10,6 +10,9 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
+import { Image } from 'expo-image';
+import { useRouter, type RelativePathString } from 'expo-router';
+import MapView, { Marker } from 'react-native-maps';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { AutumnColors } from '@/constants/colors';
 import { PlannerTab } from '@/components/home/PlannerTab';
@@ -18,20 +21,41 @@ import { GroupCard } from '@/components/home/GroupCard';
 import { CreateGroupModal } from '@/components/home/CreateGroupModal';
 import { TravelGoalCard } from '@/components/home/TravelGoalCard';
 import { TravelGoalInput } from '@/components/home/TravelGoalInput';
-import { useSoloGoals, type SoloGoal } from '@/contexts/SoloGoalsContext';
+import {
+  createTravelGoal,
+  createTrip,
+  deleteTravelGoal,
+  deleteTrip,
+  getTravelGoals,
+  getMyProfile,
+  getTrips,
+  TravelGoal,
+  TripSummary,
+} from '@/lib/api';
 
 const settingsIcon = require('@/assets/images/settings_ic.svg');
+
+const MANILA_CENTER = {
+  latitude: 14.5995,
+  longitude: 120.9842,
+};
 
 type PlannerSection = 'group' | 'itinerary' | 'goals';
 
 interface GroupData {
   id: string;
   name: string;
-  /**
-   * Temporary placeholder member count for UI testing.
-   * TODO: Replace with actual member data from backend.
-   */
   memberCount: number;
+  currentUserRole: TripSummary['current_user_role'];
+}
+
+function toGroupData(trip: TripSummary): GroupData {
+  return {
+    id: trip.id,
+    name: trip.name,
+    memberCount: trip.member_count,
+    currentUserRole: trip.current_user_role,
+  };
 }
 
 export default function HomeScreen() {
@@ -42,22 +66,25 @@ export default function HomeScreen() {
   const [activeTab, setActiveTab] = useState<PlannerSection>('group');
 
   // Destination search
-  const [destination, setDestination] = useState('');
+  const [destination, setDestination] = useState('Manila');
 
   // Group state
   const [groups, setGroups] = useState<GroupData[]>([]);
+  const [isLoadingGroups, setIsLoadingGroups] = useState(true);
+  const [groupError, setGroupError] = useState<string | null>(null);
   const [showCreateGroup, setShowCreateGroup] = useState(false);
   const [groupToDelete, setGroupToDelete] = useState<string | null>(null);
 
-  // Solo Goals — shared state via Context
-  const { goals, addGoal, removeGoal } = useSoloGoals();
+  // Goals state
+  const [goals, setGoals] = useState<TravelGoal[]>([]);
+  const [isLoadingGoals, setIsLoadingGoals] = useState(true);
+  const [goalError, setGoalError] = useState<string | null>(null);
   const [goalToDelete, setGoalToDelete] = useState<string | null>(null);
 
-  // TODO: Replace with authenticated user's profile name
-  const userName = 'Traveler';
+  const [userName, setUserName] = useState('Traveler');
 
   const handleProfilePress = useCallback(() => {
-    router.push('/Userprofile');
+    router.push('/Userprofile' as RelativePathString);
   }, [router]);
 
   const handleSettingsPress = useCallback(() => {
@@ -67,32 +94,54 @@ export default function HomeScreen() {
   // --- Search ---
   const handleSearchSubmit = useCallback(() => {
     const trimmed = destination.trim();
-    if (trimmed.length > 0) {
-      // TODO: Replace local destination behavior with Places/Maps API results
-      const path = `/discovery?destination=${encodeURIComponent(trimmed)}` as RelativePathString;
-      router.push(path);
-    }
+    const selectedDestination = trimmed || 'Manila';
+    const path = `/discovery?destination=${encodeURIComponent(selectedDestination)}` as RelativePathString;
+    router.push(path);
   }, [destination, router]);
 
   // --- Groups ---
-  const handleCreateGroup = useCallback((name: string) => {
-    // TODO: Persist groups through backend/API
-    setGroups((prev) => [
-      ...prev,
-      { id: Date.now().toString(), name, memberCount: 0 },
-    ]);
-    setShowCreateGroup(false);
+  const loadGroups = useCallback(async () => {
+    setIsLoadingGroups(true);
+    setGroupError(null);
+    try {
+      const trips = await getTrips();
+      setGroups(trips.map(toGroupData));
+    } catch (error) {
+      setGroupError(error instanceof Error ? error.message : 'Unable to load groups.');
+    } finally {
+      setIsLoadingGroups(false);
+    }
+  }, []);
+
+  const handleCreateGroup = useCallback(async (name: string) => {
+    try {
+      const trip = await createTrip(name);
+      setGroups((prev) => [toGroupData(trip), ...prev]);
+      setShowCreateGroup(false);
+    } catch (error) {
+      Alert.alert(
+        'Unable to create group',
+        error instanceof Error ? error.message : 'Please try again.',
+      );
+    }
   }, []);
 
   const handleLongPressGroup = useCallback((id: string) => {
     setGroupToDelete(id);
   }, []);
 
-  const handleConfirmDeleteGroup = useCallback(() => {
+  const handleConfirmDeleteGroup = useCallback(async () => {
     if (groupToDelete !== null) {
-      // TODO: Delete group through backend/API when integration is implemented
-      setGroups((prev) => prev.filter((g) => g.id !== groupToDelete));
-      setGroupToDelete(null);
+      try {
+        await deleteTrip(groupToDelete);
+        setGroups((prev) => prev.filter((group) => group.id !== groupToDelete));
+        setGroupToDelete(null);
+      } catch (error) {
+        Alert.alert(
+          'Unable to delete group',
+          error instanceof Error ? error.message : 'Please try again.',
+        );
+      }
     }
   }, [groupToDelete]);
 
@@ -101,20 +150,57 @@ export default function HomeScreen() {
   }, []);
 
   // --- Goals ---
-  const handleAddGoal = useCallback((text: string) => {
-    addGoal(text);
-  }, [addGoal]);
+  const loadGoals = useCallback(async () => {
+    setIsLoadingGoals(true);
+    setGoalError(null);
+    try {
+      setGoals(await getTravelGoals());
+    } catch (error) {
+      setGoalError(error instanceof Error ? error.message : 'Unable to load goals.');
+    } finally {
+      setIsLoadingGoals(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    void loadGroups();
+    void loadGoals();
+    void getMyProfile()
+      .then((profile) => setUserName(profile.full_name || 'Traveler'))
+      .catch(() => undefined);
+  }, [loadGoals, loadGroups]);
+
+  const handleAddGoal = useCallback(async (goalText: string) => {
+    try {
+      const goal = await createTravelGoal(goalText);
+      setGoals((prev) => [goal, ...prev]);
+    } catch (error) {
+      Alert.alert(
+        'Unable to add goal',
+        error instanceof Error ? error.message : 'Please try again.',
+      );
+      throw error;
+    }
+  }, []);
 
   const handleLongPressGoal = useCallback((id: string) => {
     setGoalToDelete(id);
   }, []);
 
-  const handleConfirmDelete = useCallback(() => {
+  const handleConfirmDelete = useCallback(async () => {
     if (goalToDelete !== null) {
-      removeGoal(goalToDelete);
-      setGoalToDelete(null);
+      try {
+        await deleteTravelGoal(goalToDelete);
+        setGoals((prev) => prev.filter((goal) => goal.id !== goalToDelete));
+        setGoalToDelete(null);
+      } catch (error) {
+        Alert.alert(
+          'Unable to delete goal',
+          error instanceof Error ? error.message : 'Please try again.',
+        );
+      }
     }
-  }, [goalToDelete, removeGoal]);
+  }, [goalToDelete]);
 
   const handleCancelDelete = useCallback(() => {
     setGoalToDelete(null);
@@ -127,19 +213,25 @@ export default function HomeScreen() {
         name={item.name}
         memberCount={item.memberCount}
         onPress={() => {
-          // TODO: Replace temporary group ID with backend-generated groupId
           const path = `/group/${item.id}` as RelativePathString;
           router.push(path);
         }}
-        onLongPress={() => handleLongPressGroup(item.id)}
+        onLongPress={
+          item.currentUserRole === 'owner'
+            ? () => handleLongPressGroup(item.id)
+            : undefined
+        }
       />
     ),
     [handleLongPressGroup, router],
   );
 
   const renderGoalItem = useCallback(
-    ({ item }: { item: SoloGoal }) => (
-      <TravelGoalCard text={item.text} onLongPress={() => handleLongPressGoal(item.id)} />
+    ({ item }: { item: TravelGoal }) => (
+      <TravelGoalCard
+        text={item.goal_text}
+        onLongPress={() => handleLongPressGoal(item.id)}
+      />
     ),
     [handleLongPressGoal],
   );
@@ -147,6 +239,29 @@ export default function HomeScreen() {
   const renderContent = () => {
     switch (activeTab) {
       case 'group':
+        if (isLoadingGroups) {
+          return (
+            <View style={styles.groupStatus}>
+              <ActivityIndicator color={AutumnColors.primary} />
+              <Text style={styles.groupStatusText}>Loading groups...</Text>
+            </View>
+          );
+        }
+        if (groupError) {
+          return (
+            <View style={styles.groupStatus}>
+              <Text style={styles.groupErrorText}>{groupError}</Text>
+              <TouchableOpacity
+                accessibilityRole="button"
+                accessibilityLabel="Retry loading groups"
+                onPress={() => void loadGroups()}
+                style={styles.retryButton}
+              >
+                <Text style={styles.retryButtonText}>Retry</Text>
+              </TouchableOpacity>
+            </View>
+          );
+        }
         if (groups.length === 0) {
           return (
             <View style={styles.groupSection}>
@@ -192,10 +307,51 @@ export default function HomeScreen() {
         );
 
       case 'itinerary':
+        if (isLoadingGroups) {
+          return (
+            <View style={styles.groupStatus}>
+              <ActivityIndicator color={AutumnColors.primary} />
+              <Text style={styles.groupStatusText}>Loading itineraries...</Text>
+            </View>
+          );
+        }
+        if (groupError) {
+          return (
+            <View style={styles.groupStatus}>
+              <Text style={styles.groupErrorText}>{groupError}</Text>
+              <TouchableOpacity
+                accessibilityRole="button"
+                accessibilityLabel="Retry loading itineraries"
+                onPress={() => void loadGroups()}
+                style={styles.retryButton}
+              >
+                <Text style={styles.retryButtonText}>Retry</Text>
+              </TouchableOpacity>
+            </View>
+          );
+        }
+        if (groups.length > 0) {
+          return (
+            <View style={styles.groupSection}>
+              <Text style={styles.itineraryIntro}>
+                Choose a group to review saved places, vote, and finalize its schedule.
+              </Text>
+              <FlatList
+                data={groups}
+                keyExtractor={(item) => item.id}
+                renderItem={renderGroupItem}
+                contentContainerStyle={styles.groupList}
+                showsVerticalScrollIndicator={false}
+                style={styles.groupFlatList}
+                ItemSeparatorComponent={() => <View style={styles.groupSeparator} />}
+              />
+            </View>
+          );
+        }
         return (
           <EmptyState
             title="No plans yet!"
-            description="Add places to start your adventure."
+            description="Create a group, discover places, then build its shared itinerary."
           />
         );
 
@@ -213,7 +369,24 @@ export default function HomeScreen() {
             <TravelGoalInput onAdd={handleAddGoal} />
 
             {/* Goal list or empty state */}
-            {goals.length === 0 ? (
+            {isLoadingGoals ? (
+              <View style={styles.groupStatus}>
+                <ActivityIndicator color={AutumnColors.primary} />
+                <Text style={styles.groupStatusText}>Loading goals...</Text>
+              </View>
+            ) : goalError ? (
+              <View style={styles.groupStatus}>
+                <Text style={styles.groupErrorText}>{goalError}</Text>
+                <TouchableOpacity
+                  accessibilityRole="button"
+                  accessibilityLabel="Retry loading goals"
+                  onPress={() => void loadGoals()}
+                  style={styles.retryButton}
+                >
+                  <Text style={styles.retryButtonText}>Retry</Text>
+                </TouchableOpacity>
+              </View>
+            ) : goals.length === 0 ? (
               <EmptyState
                 title="No travel goals yet!"
                 description="Add a goal for your next adventure."
@@ -221,7 +394,7 @@ export default function HomeScreen() {
             ) : (
               <FlatList
                 data={goals}
-                keyExtractor={(item) => item.id}
+                keyExtractor={(goal) => goal.id}
                 renderItem={renderGoalItem}
                 contentContainerStyle={styles.goalsList}
                 showsVerticalScrollIndicator={false}
@@ -268,11 +441,28 @@ export default function HomeScreen() {
         Where do you{'\n'}want to explore today?
       </Text>
 
-      {/* Map placeholder */}
-      {/* TODO: Replace with real map component when maps/API integration is implemented */}
-      <View style={styles.mapPlaceholder}>
-        <Text style={styles.mapPlaceholderText}>MAP PLACEHOLDER</Text>
-      </View>
+      <TouchableOpacity
+        activeOpacity={0.9}
+        accessibilityRole="button"
+        accessibilityLabel="Open live Manila map"
+        onPress={handleSearchSubmit}
+        style={styles.mapPlaceholder}
+      >
+        <MapView
+          initialRegion={{
+            ...MANILA_CENTER,
+            latitudeDelta: 0.12,
+            longitudeDelta: 0.12,
+          }}
+          pointerEvents="none"
+          style={StyleSheet.absoluteFillObject}
+        >
+          <Marker coordinate={MANILA_CENTER} title="Manila" />
+        </MapView>
+        <View style={styles.mapPreviewLabel}>
+          <Text style={styles.mapPlaceholderText}>Open live recommendations</Text>
+        </View>
+      </TouchableOpacity>
 
       {/* Search / destination field */}
       <View style={styles.searchContainer}>
@@ -454,6 +644,7 @@ const styles = StyleSheet.create({
     width: '100%',
     aspectRatio: 2,
     borderRadius: 12,
+    overflow: 'hidden',
     backgroundColor: '#EDE9E0',
     justifyContent: 'center',
     alignItems: 'center',
@@ -462,7 +653,16 @@ const styles = StyleSheet.create({
   mapPlaceholderText: {
     fontSize: 13,
     fontWeight: '600',
-    color: AutumnColors.body,
+    color: '#FFFFFF',
+  },
+  mapPreviewLabel: {
+    position: 'absolute',
+    bottom: 8,
+    alignSelf: 'center',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 14,
+    backgroundColor: AutumnColors.primary,
   },
 
   /* Search */
@@ -507,6 +707,39 @@ const styles = StyleSheet.create({
   /* Group section */
   groupSection: {
     flex: 1,
+  },
+  itineraryIntro: {
+    color: AutumnColors.body,
+    fontSize: 13,
+    lineHeight: 18,
+    marginBottom: 10,
+  },
+  groupStatus: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 12,
+  },
+  groupStatusText: {
+    color: AutumnColors.body,
+    fontSize: 14,
+  },
+  groupErrorText: {
+    color: AutumnColors.body,
+    fontSize: 14,
+    lineHeight: 20,
+    textAlign: 'center',
+  },
+  retryButton: {
+    borderRadius: 18,
+    backgroundColor: AutumnColors.primary,
+    paddingHorizontal: 20,
+    paddingVertical: 9,
+  },
+  retryButtonText: {
+    color: '#FFFFFF',
+    fontSize: 13,
+    fontWeight: '600',
   },
   groupFlatList: {
     flex: 1,

@@ -39,7 +39,13 @@
           }
         }
       ],
-      "@react-native-community/datetimepicker"
+      "@react-native-community/datetimepicker",
+      [
+        "expo-calendar",
+        {
+          "calendarPermission": "Allow Travel App to add finalized itinerary places to your calendar."
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true,

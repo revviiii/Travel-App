@@ -1,27 +1,72 @@
-import { Modal, Share, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { useEffect, useState } from 'react';
+import {
+  ActivityIndicator,
+  Modal,
+  Share,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+} from 'react-native';
 import { AutumnColors } from '@/constants/colors';
+import { createTripInvitation } from '@/lib/api';
 
 interface GroupInviteSheetProps {
   visible: boolean;
+  groupId: string;
   groupName: string;
+  canInvite: boolean;
   onClose: () => void;
 }
 
 /**
  * A bottom-sheet modal for inviting friends to a group.
- * Uses React Native's built-in Share API for frontend testing.
- *
- * // TODO: Generate group invitation/deep link from backend
- * // TODO: Replace temporary invite text with real joinable group invitation link
+ * Creates a real, seven-day backend invitation and shares its deep link.
  */
-export function GroupInviteSheet({ visible, groupName, onClose }: GroupInviteSheetProps) {
+export function GroupInviteSheet({
+  visible,
+  groupId,
+  groupName,
+  canInvite,
+  onClose,
+}: GroupInviteSheetProps) {
+  const [inviteLink, setInviteLink] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!visible) {
+      setInviteLink(null);
+      setErrorMessage(null);
+    }
+  }, [visible]);
+
+  const ensureInviteLink = async () => {
+    if (inviteLink) return inviteLink;
+    if (!canInvite) {
+      throw new Error('Only the group owner or an admin can invite members.');
+    }
+
+    setIsLoading(true);
+    setErrorMessage(null);
+    try {
+      const invitation = await createTripInvitation(groupId);
+      const generatedLink = `frontend://invite/${invitation.invite_token}`;
+      setInviteLink(generatedLink);
+      return generatedLink;
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   const handleShare = async () => {
     try {
+      const link = await ensureInviteLink();
       await Share.share({
-        message: `Join my travel group "${groupName}" on Ramyl!\n\n[GROUP INVITE LINK PLACEHOLDER]`,
+        message: `Join my travel group "${groupName}"!\n\n${link}`,
       });
-    } catch {
-      // User cancelled or share failed — silently ignore
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : 'Unable to create invitation.');
     }
   };
 
@@ -46,18 +91,28 @@ export function GroupInviteSheet({ visible, groupName, onClose }: GroupInviteShe
             accessibilityRole="button"
             accessibilityLabel="Share group invitation"
             style={styles.shareButton}
+            disabled={isLoading || !canInvite}
           >
             {/* TODO: Replace with final Figma Share SVG */}
             <View style={styles.shareIconPlaceholder} />
-            <Text style={styles.shareText}>Share</Text>
+            {isLoading ? (
+              <ActivityIndicator color="#FFFFFF" />
+            ) : (
+              <Text style={styles.shareText}>
+                {canInvite ? 'Create & Share' : 'Invite unavailable'}
+              </Text>
+            )}
           </TouchableOpacity>
 
           <Text style={styles.orText}>or</Text>
 
-          {/* Placeholder invite link */}
           <View style={styles.linkContainer}>
-            <Text style={styles.linkText}>GROUP INVITE LINK PLACEHOLDER</Text>
+            <Text style={styles.linkText} selectable>
+              {inviteLink ?? 'A secure invitation link will appear here.'}
+            </Text>
           </View>
+
+          {errorMessage ? <Text style={styles.errorText}>{errorMessage}</Text> : null}
 
           {/* Close */}
           <TouchableOpacity
@@ -150,6 +205,12 @@ const styles = StyleSheet.create({
   closeButton: {
     paddingVertical: 8,
     paddingHorizontal: 16,
+  },
+  errorText: {
+    color: '#A23A2A',
+    fontSize: 12,
+    marginBottom: 8,
+    textAlign: 'center',
   },
   closeText: {
     fontSize: 14,

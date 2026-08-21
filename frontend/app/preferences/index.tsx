@@ -1,10 +1,13 @@
 import {
+  ActivityIndicator,
+  Alert,
   ScrollView,
   StyleSheet,
   Text,
   TouchableOpacity,
   View,
 } from 'react-native';
+import { useState } from 'react';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -12,23 +15,35 @@ import { AutumnColors } from '@/constants/colors';
 import { PREFERENCE_CATEGORIES } from '@/constants/preferences';
 import { PreferenceChip } from '@/components/onboarding/PreferenceChip';
 import { usePreferences } from '@/contexts/PreferenceContext';
-
-// TODO: Redirect returning users directly to the main app when preferences are already completed
+import { replaceMyPreferences, updateMyProfile } from '@/lib/api';
 
 export default function PreferencesScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { selectedPreferences, togglePreference, maxPreferences } = usePreferences();
+  const [isSaving, setIsSaving] = useState(false);
 
-  const handleSkip = () => {
-    // TODO: Persist user preferences when backend integration is available
-    router.replace('/home');
+  const saveAndContinue = async (preferenceKeys: string[]) => {
+    setIsSaving(true);
+    try {
+      await Promise.all([
+        replaceMyPreferences(preferenceKeys),
+        updateMyProfile({ onboarding_completed: true }),
+      ]);
+      router.replace('/home');
+    } catch (error) {
+      Alert.alert(
+        'Unable to save preferences',
+        error instanceof Error ? error.message : 'Please try again.',
+      );
+    } finally {
+      setIsSaving(false);
+    }
   };
 
-  const handleContinue = () => {
-    // TODO: Persist selected preferences when backend integration is implemented
-    router.replace('/home');
-  };
+  const handleSkip = () => void saveAndContinue([]);
+
+  const handleContinue = () => void saveAndContinue([...selectedPreferences]);
 
   return (
     <View style={[styles.screen, { paddingTop: insets.top + 12 }]}>
@@ -39,6 +54,7 @@ export default function PreferencesScreen() {
           accessibilityRole="button"
           accessibilityLabel="Skip preferences"
           style={styles.skipButton}
+          disabled={isSaving}
         >
           <Text style={styles.skipText}>Skip</Text>
           <Ionicons color={AutumnColors.primary} name="chevron-forward" size={16} />
@@ -55,7 +71,7 @@ export default function PreferencesScreen() {
 
         {/* Description + selection hint */}
         <Text style={styles.description}>
-          Share your travel preferences, and we&apos;ll craft your perfect trip.
+          {'Share your travel preferences, and we\'ll craft your perfect trip.'}
         </Text>
         <Text style={styles.selectionHint}>Choose up to {maxPreferences} interests</Text>
 
@@ -86,8 +102,13 @@ export default function PreferencesScreen() {
           accessibilityRole="button"
           accessibilityLabel="Continue"
           style={styles.continueButton}
+          disabled={isSaving}
         >
-          <Text style={styles.continueText}>Continue</Text>
+          {isSaving ? (
+            <ActivityIndicator color="#FFFFFF" />
+          ) : (
+            <Text style={styles.continueText}>Continue</Text>
+          )}
         </TouchableOpacity>
       </View>
     </View>

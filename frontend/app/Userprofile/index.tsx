@@ -1,9 +1,12 @@
 import { Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
-import { router } from 'expo-router';
+import { router, type RelativePathString } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
-import { Alert, Pressable, StyleSheet, Text, View } from 'react-native';
+import { useEffect, useState } from 'react';
+import { ActivityIndicator, Alert, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { getMyProfile } from '@/lib/api';
+import { supabase } from '@/lib/supabase';
 
 const personalInfoIcon = require('@/assets/images/User_dark_ic.svg');
 const travelSettingsIcon = require('@/assets/images/travel_setting_ic.svg');
@@ -13,9 +16,34 @@ const cameraIcon = require('@/assets/images/Camera_ic.svg');
 export default function UserProfileScreen() {
   const insets = useSafeAreaInsets();
 
-  // TODO: Replace these values with the authenticated user's profile data.
-  const userName = 'Username';
-  const userEmail = 'username@email.com';
+  const [userName, setUserName] = useState('Traveler');
+  const [userEmail, setUserEmail] = useState('');
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    let isCurrent = true;
+    Promise.all([getMyProfile(), supabase.auth.getSession()])
+      .then(([profile, sessionResult]) => {
+        if (!isCurrent) return;
+        setUserName(profile.full_name || 'Traveler');
+        setUserEmail(sessionResult.data.session?.user.email ?? '');
+      })
+      .catch((error) => {
+        if (isCurrent) {
+          Alert.alert(
+            'Unable to load profile',
+            error instanceof Error ? error.message : 'Please try again.',
+          );
+        }
+      })
+      .finally(() => {
+        if (isCurrent) setIsLoading(false);
+      });
+
+    return () => {
+      isCurrent = false;
+    };
+  }, []);
 
   const handleBack = () => {
     if (router.canGoBack()) {
@@ -31,16 +59,19 @@ export default function UserProfileScreen() {
   };
 
   const handlePersonalInfo = () => {
-    router.push('/Personalinfo');
+    router.push('/Personalinfo' as RelativePathString);
   };
 
   const handleTravelPreferences = () => {
-    router.push('/Travelpreferences');
+    router.push('/Travelpreferences' as RelativePathString);
   };
 
-  const handleLogout = () => {
-    // There is no persisted auth provider yet. Dismissing the stack unmounts
-    // authenticated screens and clears their local state before opening Login.
+  const handleLogout = async () => {
+    const { error } = await supabase.auth.signOut();
+    if (error) {
+      Alert.alert('Unable to log out', error.message);
+      return;
+    }
     router.dismissAll();
     router.replace('/Login');
   };
@@ -82,8 +113,14 @@ export default function UserProfileScreen() {
               </Pressable>
             </View>
 
-            <Text style={styles.userName}>{userName}</Text>
-            <Text style={styles.userEmail}>{userEmail}</Text>
+            {isLoading ? (
+              <ActivityIndicator color="#4258C5" style={styles.profileLoader} />
+            ) : (
+              <>
+                <Text style={styles.userName}>{userName}</Text>
+                <Text style={styles.userEmail}>{userEmail}</Text>
+              </>
+            )}
           </View>
 
           <View style={styles.menu}>
@@ -101,7 +138,7 @@ export default function UserProfileScreen() {
               destructive
               icon={logoutIcon}
               label="Logout"
-              onPress={handleLogout}
+              onPress={() => void handleLogout()}
               showChevron={false}
             />
           </View>
@@ -207,6 +244,9 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     lineHeight: 18,
     textAlign: 'center',
+  },
+  profileLoader: {
+    marginTop: 12,
   },
   userEmail: {
     marginTop: 2,

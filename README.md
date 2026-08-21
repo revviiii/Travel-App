@@ -6,9 +6,9 @@ trips.
 
 ## Team
 
-- Leigh Dela Cruz - frontend, backend, and video demo
-- Revinea Labiano - frontend, backend, and documentation
-- Ramyl Salazar - backend, database, Google Places, and Google Routes
+- Leigh Dela Cruz - frontend and video demo
+- Revinea Labiano - frontend and documentation
+- Ramyl Salazar - full backend, database, Google Places, and Google Routes
 
 ## Planned stack
 
@@ -16,12 +16,12 @@ trips.
 - API: Python and FastAPI
 - Data: Supabase PostgreSQL, Auth, Realtime, and Storage
 - Maps: Google Places API (New) and Routes API
-- AI: OpenAI API for optional itinerary assistance
+- Planning: scheduled place proposals, group voting, leader finalization, and calendar sync
 
 ## Repository layout
 
 ```text
-apps/mobile/       React Native application (to be initialized by frontend)
+frontend/          Expo and React Native mobile application
 apps/api/          FastAPI backend
 supabase/          Versioned database migrations and seed data
 docs/              Architecture and implementation guides
@@ -48,7 +48,10 @@ real API keys.
 
 ## Documentation
 
+- [Frontend, backend, and database local testing guide](docs/full-stack-local-testing-guide.md)
 - [Ramyl implementation roadmap](docs/ramyl-implementation-roadmap.md)
 - [Backend architecture](docs/architecture.md)
 - [Backend API contracts](docs/api-contracts.md)
 - [Google Maps integration](docs/google-maps-integration.md)
+- [Backend deployment guide](docs/backend-deployment-guide.md)
+- [Backend and database handoff](docs/backend-database-handoff.md)

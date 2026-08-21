@@ -16,6 +16,8 @@ FastAPI server.
 
 ```env
 GOOGLE_MAPS_API_KEY=your_restricted_server_key
+GOOGLE_PLACES_REQUESTS_PER_MINUTE=12
+GOOGLE_ROUTES_REQUESTS_PER_MINUTE=20
 ```
 
 Restart FastAPI after changing `.env` because settings are cached for the
@@ -66,6 +68,12 @@ those fields move Nearby Search into Google's higher Enterprise SKU. The
 nullable `rating` property keeps the frontend contract forward-compatible with
 a future explicit details request.
 
+Google's current policies restrict caching most Places content. The stable Place
+ID is the long-term identifier exception. Before public deployment, review the
+current Google Maps Platform terms for every stored/displayed field and refresh
+strategy; do not add a persistent Places or Routes response cache merely to save
+quota.
+
 ## Routes and map polylines
 
 `POST /api/v1/maps/routes/compute` also requires a Supabase user bearer token.
@@ -81,6 +89,11 @@ a future explicit details request.
 The response contains normalized meters, seconds, and Google's encoded
 polyline. The mobile map must decode and render that polyline and display the
 required Google attribution.
+
+FastAPI applies separate per-user, per-process request limits to Places and
+Routes. It returns `429` with `Retry-After` before calling Google when a user
+exceeds the configured limit. Keep stricter project quotas and budget alerts in
+Google Cloud because application throttling is only one layer of cost control.
 
 ## Mobile handoff
 

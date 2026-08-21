@@ -5,8 +5,10 @@ interface PlaceCardProps {
   category: string;
   name: string;
   location: string;
-  rating: number;
+  rating: number | null;
   status: string;
+  actionLabel?: string;
+  onActionPress?: () => void;
   /** Optional callback for the circular Add-to-Itinerary action */
   onAddToItinerary?: () => void;
 }
@@ -14,11 +16,22 @@ interface PlaceCardProps {
 /**
  * A recommendation/place card for the Discovery interface.
  * Displays a placeholder image, category badge, place name, location, rating, and status.
- * All data is mock — clearly marked for future API replacement.
- *
- * // TODO: Replace mock recommendations with backend/maps API data
+ * Supports an optional action for saving a live result or voting on a saved place.
  */
-export function PlaceCard({ category, name, location, rating, status, onAddToItinerary }: PlaceCardProps) {
+export function PlaceCard({
+  category,
+  name,
+  location,
+  rating,
+  status,
+  actionLabel = 'View details',
+  onActionPress,
+  onAddToItinerary,
+}: PlaceCardProps) {
+  const action = onActionPress ?? onAddToItinerary;
+  const resolvedActionLabel =
+    actionLabel === 'View details' && onAddToItinerary ? 'Add to itinerary' : actionLabel;
+
   return (
     <View style={styles.card}>
       {/* TODO: Replace with actual place image from API */}
@@ -38,17 +51,18 @@ export function PlaceCard({ category, name, location, rating, status, onAddToIti
         </Text>
 
         <View style={styles.metaRow}>
-          <Text style={styles.rating}>{rating.toFixed(1)}</Text>
+          <Text style={styles.rating}>{rating === null ? 'Google' : rating.toFixed(1)}</Text>
           <Text style={styles.status}>{status}</Text>
         </View>
       </View>
 
       {/* TODO: Replace with final Figma link/share SVG icon */}
       <TouchableOpacity
+        disabled={!action}
+        onPress={action}
         style={styles.linkButton}
         accessibilityRole="button"
-        accessibilityLabel={onAddToItinerary ? 'Add to itinerary' : 'View details'}
-        onPress={onAddToItinerary}
+        accessibilityLabel={resolvedActionLabel}
       >
         {/* TODO: Replace with final Figma Add-to-Itinerary SVG */}
         <View style={styles.linkIconPlaceholder} />

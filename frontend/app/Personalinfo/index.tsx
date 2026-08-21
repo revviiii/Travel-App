@@ -1,9 +1,10 @@
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
-import { router } from 'expo-router';
+import { router, type RelativePathString } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
+  ActivityIndicator,
   Alert,
   KeyboardAvoidingView,
   Modal,
@@ -16,11 +17,14 @@ import {
   View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { getMyProfile, updateMyProfile } from '@/lib/api';
+import { supabase } from '@/lib/supabase';
 
 const emailIcon = require('@/assets/images/Email_ic.svg');
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 const COUNTRY_CODES = [
+  { flag: '🇵🇭', label: 'Philippines', prefix: '+63' },
   { flag: '🇪🇸', label: 'Spain', prefix: '+34' },
   { flag: '🇬🇧', label: 'United Kingdom', prefix: '+44' },
   { flag: '🇺🇸', label: 'United States', prefix: '+1' },
@@ -46,6 +50,44 @@ export default function PersonalInfoScreen() {
   const [countryPickerOpen, setCountryPickerOpen] = useState(false);
   const [genderPickerOpen, setGenderPickerOpen] = useState(false);
   const [errors, setErrors] = useState<FormErrors>({});
+  const [isLoading, setIsLoading] = useState(true);
+  const [isSaving, setIsSaving] = useState(false);
+
+  useEffect(() => {
+    let isCurrent = true;
+    Promise.all([getMyProfile(), supabase.auth.getSession()])
+      .then(([profile, sessionResult]) => {
+        if (!isCurrent) return;
+        setFullName(profile.full_name ?? '');
+        setEmail(sessionResult.data.session?.user.email ?? '');
+        setCountry(profile.country ?? '');
+        setGender(profile.gender ?? '');
+
+        const storedPhone = profile.phone_number ?? '';
+        const matchingCode = COUNTRY_CODES.find((item) => storedPhone.startsWith(item.prefix));
+        if (matchingCode) {
+          setCountryCode(matchingCode);
+          setPhone(storedPhone.slice(matchingCode.prefix.length).trim());
+        } else {
+          setPhone(storedPhone);
+        }
+      })
+      .catch((error) => {
+        if (isCurrent) {
+          Alert.alert(
+            'Unable to load profile',
+            error instanceof Error ? error.message : 'Please try again.',
+          );
+        }
+      })
+      .finally(() => {
+        if (isCurrent) setIsLoading(false);
+      });
+
+    return () => {
+      isCurrent = false;
+    };
+  }, []);
 
   const updateValue = (field: FormField, update: () => void) => {
     update();
@@ -56,10 +98,10 @@ export default function PersonalInfoScreen() {
 
   const handleBack = () => {
     if (router.canGoBack()) router.back();
-    else router.replace('/Userprofile');
+    else router.replace('/Userprofile' as RelativePathString);
   };
 
-  const handleSave = () => {
+  const handleSave = async () => {
     const nextErrors: FormErrors = {};
     if (!fullName.trim()) nextErrors.fullName = 'Enter your full name.';
     if (!EMAIL_PATTERN.test(email.trim())) nextErrors.email = 'Enter a valid email.';
@@ -69,6 +111,23 @@ export default function PersonalInfoScreen() {
     setErrors(nextErrors);
 
     if (Object.keys(nextErrors).length === 0) {
+      setIsSaving(true);
+      try {
+        await updateMyProfile({
+          full_name: fullName.trim(),
+          country: country.trim(),
+          phone_number: `${countryCode.prefix} ${phone.trim()}`,
+          gender,
+        });
+      } catch (error) {
+        Alert.alert(
+          'Unable to save profile',
+          error instanceof Error ? error.message : 'Please try again.',
+        );
+        setIsSaving(false);
+        return;
+      }
+      setIsSaving(false);
       Alert.alert('Profile saved', 'Your personal information has been updated.');
     }
   };
@@ -125,6 +184,7 @@ export default function PersonalInfoScreen() {
             autoCapitalize="none"
             autoComplete="email"
             autoCorrect={false}
+            editable={false}
             inputMode="email"
             onChangeText={(value) => updateValue('email', () => setEmail(value))}
             onSubmitEditing={() => countryRef.current?.focus()}
@@ -204,10 +264,15 @@ export default function PersonalInfoScreen() {
         <Pressable
           accessibilityLabel="Save personal information"
           accessibilityRole="button"
-          onPress={handleSave}
+          disabled={isLoading || isSaving}
+          onPress={() => void handleSave()}
           style={({ pressed }) => [styles.saveButton, pressed && styles.savePressed]}
         >
-          <Text style={styles.saveText}>Save</Text>
+          {isLoading || isSaving ? (
+            <ActivityIndicator color="#FFFFFF" />
+          ) : (
+            <Text style={styles.saveText}>Save</Text>
+          )}
         </Pressable>
       </View>
 

@@ -14,8 +14,16 @@ from app.clients.supabase import (
 )
 from app.core.config import Settings, get_settings
 from app.schemas.profile import CurrentUser
+from app.services.rate_limit import SlidingWindowRateLimiter
 
 bearer_scheme = HTTPBearer(auto_error=False)
+
+
+_maps_rate_limiter = SlidingWindowRateLimiter()
+
+
+def get_maps_rate_limiter() -> SlidingWindowRateLimiter:
+    return _maps_rate_limiter
 
 
 async def get_http_client() -> AsyncIterator[httpx.AsyncClient]:

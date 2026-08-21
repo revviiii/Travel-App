@@ -1,7 +1,7 @@
 from functools import lru_cache
 from pathlib import Path
 
-from pydantic import SecretStr
+from pydantic import Field, SecretStr
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 REPOSITORY_ROOT = Path(__file__).resolve().parents[4]
@@ -23,7 +23,8 @@ class Settings(BaseSettings):
     supabase_secret_key: SecretStr | None = None
 
     google_maps_api_key: SecretStr | None = None
-    openai_api_key: SecretStr | None = None
+    google_places_requests_per_minute: int = Field(default=12, ge=1, le=1_000)
+    google_routes_requests_per_minute: int = Field(default=20, ge=1, le=1_000)
     cors_origins: str = "http://localhost:8081"
 
 

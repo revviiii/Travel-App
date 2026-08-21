@@ -76,7 +76,7 @@ export function DiscoveryFilterPanel({
           {/* Header */}
           <Text style={styles.title}>Filter your interests</Text>
           <Text style={styles.description}>
-            Choose what you&apos;d like to discover.
+            {'Choose what you\'d like to discover.'}
           </Text>
 
           {/* Counter */}
