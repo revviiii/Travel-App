@@ -1,4 +1,5 @@
-create extension if not exists pgcrypto;
+create schema if not exists extensions;
+create extension if not exists pgcrypto with schema extensions;
 
 create table public.profiles (
     id uuid primary key references auth.users (id) on delete cascade,
@@ -55,7 +56,7 @@ create table public.trip_invitations (
     id uuid primary key default gen_random_uuid(),
     trip_id uuid not null references public.trips (id) on delete cascade,
     created_by uuid not null references public.profiles (id) on delete cascade,
-    invite_token text not null unique default encode(gen_random_bytes(32), 'hex'),
+    invite_token text not null unique default encode(extensions.gen_random_bytes(32), 'hex'),
     expires_at timestamptz,
     maximum_uses integer check (maximum_uses is null or maximum_uses > 0),
     use_count integer not null default 0 check (use_count >= 0),
