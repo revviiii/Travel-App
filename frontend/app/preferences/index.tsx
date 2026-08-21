@@ -5,6 +5,7 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { AutumnColors } from '@/constants/colors';
@@ -17,11 +18,7 @@ import { usePreferences } from '@/contexts/PreferenceContext';
 export default function PreferencesScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { selectedPreferences, togglePreference, isMaxReached, maxPreferences } = usePreferences();
-
-  const handleBack = () => {
-    router.back();
-  };
+  const { selectedPreferences, togglePreference, maxPreferences } = usePreferences();
 
   const handleSkip = () => {
     // TODO: Persist user preferences when backend integration is available
@@ -38,24 +35,13 @@ export default function PreferencesScreen() {
       {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity
-          onPress={handleBack}
-          accessibilityRole="button"
-          accessibilityLabel="Go back"
-          style={styles.backButton}
-        >
-          {/* TODO: Replace with final Figma back-arrow SVG */}
-          <View style={styles.backIconPlaceholder} />
-        </TouchableOpacity>
-
-        <TouchableOpacity
           onPress={handleSkip}
           accessibilityRole="button"
           accessibilityLabel="Skip preferences"
           style={styles.skipButton}
         >
           <Text style={styles.skipText}>Skip</Text>
-          {/* TODO: Replace with final Figma skip-chevron SVG */}
-          <View style={styles.chevronPlaceholder} />
+          <Ionicons color={AutumnColors.primary} name="chevron-forward" size={16} />
         </TouchableOpacity>
       </View>
 
@@ -84,6 +70,7 @@ export default function PreferencesScreen() {
             <PreferenceChip
               key={pref.id}
               label={pref.label}
+              preferenceId={pref.id}
               selected={selectedPreferences.has(pref.id)}
               onPress={() => togglePreference(pref.id)}
             />
@@ -101,8 +88,6 @@ export default function PreferencesScreen() {
           style={styles.continueButton}
         >
           <Text style={styles.continueText}>Continue</Text>
-          {/* TODO: Replace with final Continue arrow SVG */}
-          <View style={styles.continueArrowPlaceholder} />
         </TouchableOpacity>
       </View>
     </View>
@@ -118,23 +103,10 @@ const styles = StyleSheet.create({
   /* Header */
   header: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
+    justifyContent: 'flex-end',
     alignItems: 'center',
-    paddingHorizontal: 20,
+    paddingRight: 20,
     marginBottom: 8,
-  },
-  backButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  backIconPlaceholder: {
-    width: 20,
-    height: 20,
-    borderRadius: 4,
-    backgroundColor: AutumnColors.chipBorder,
   },
   skipButton: {
     flexDirection: 'row',
@@ -147,12 +119,6 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: '500',
     color: AutumnColors.primary,
-  },
-  chevronPlaceholder: {
-    width: 12,
-    height: 12,
-    borderRadius: 3,
-    backgroundColor: AutumnColors.chipBorder,
   },
 
   /* Scrollable content */
@@ -228,14 +194,5 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
     color: '#FFFFFF',
-  },
-  continueArrowPlaceholder: {
-    width: 18,
-    height: 18,
-    borderRadius: 4,
-    backgroundColor: 'rgba(255,255,255,0.35)',
-    marginLeft: 8,
-    position: 'absolute',
-    right: 20,
   },
 });

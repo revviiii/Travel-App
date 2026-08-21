@@ -1,7 +1,8 @@
+import { Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
 import { router } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
-import { Alert, Pressable, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
+import { Alert, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 const personalInfoIcon = require('@/assets/images/User_dark_ic.svg');
@@ -11,8 +12,6 @@ const cameraIcon = require('@/assets/images/Camera_ic.svg');
 
 export default function UserProfileScreen() {
   const insets = useSafeAreaInsets();
-  const { width } = useWindowDimensions();
-  const horizontalPadding = width < 320 ? 22 : 32;
 
   // TODO: Replace these values with the authenticated user's profile data.
   const userName = 'Username';
@@ -47,64 +46,66 @@ export default function UserProfileScreen() {
   };
 
   return (
-    <View
-      style={[
-        styles.screen,
-        {
-          paddingTop: insets.top + 14,
-          paddingBottom: Math.max(insets.bottom + 24, 32),
-          paddingHorizontal: horizontalPadding,
-        },
-      ]}
-    >
-      <StatusBar style="dark" />
-
-      <Pressable
-        accessibilityLabel="Go back"
-        accessibilityRole="button"
-        hitSlop={12}
-        onPress={handleBack}
-        style={({ pressed }) => [styles.backButton, pressed && styles.controlPressed]}
+    <View style={styles.viewport}>
+      <View
+        style={[
+          styles.mobileFrame,
+          {
+            paddingTop: insets.top + 4,
+            paddingBottom: Math.max(insets.bottom + 20, 24),
+          },
+        ]}
       >
-        <Text style={styles.backIcon}>←</Text>
-      </Pressable>
+        <StatusBar style="dark" />
 
-      <View style={styles.profileSummary}>
-        <View style={styles.avatarFrame}>
-          <View style={styles.avatarPlaceholder} />
+        <View style={styles.content}>
           <Pressable
-            accessibilityLabel="Change profile photo"
+            accessibilityLabel="Go back"
             accessibilityRole="button"
-            hitSlop={6}
-            onPress={handleChangePhoto}
-            style={({ pressed }) => [styles.cameraButton, pressed && styles.controlPressed]}
+            onPress={handleBack}
+            style={({ pressed }) => [styles.backButton, pressed && styles.controlPressed]}
           >
-            <Image contentFit="contain" source={cameraIcon} style={styles.cameraIcon} />
+            <Ionicons color="#17192E" name="arrow-back" size={20} />
           </Pressable>
+
+          <View style={styles.profileSummary}>
+            <View style={styles.avatarFrame}>
+              <View style={styles.avatarPlaceholder} />
+              <Pressable
+                accessibilityLabel="Change profile photo"
+                accessibilityRole="button"
+                hitSlop={6}
+                onPress={handleChangePhoto}
+                style={({ pressed }) => [styles.cameraButton, pressed && styles.controlPressed]}
+              >
+                <Image contentFit="contain" source={cameraIcon} style={styles.cameraIcon} />
+              </Pressable>
+            </View>
+
+            <Text style={styles.userName}>{userName}</Text>
+            <Text style={styles.userEmail}>{userEmail}</Text>
+          </View>
+
+          <View style={styles.menu}>
+            <ProfileMenuItem
+              icon={personalInfoIcon}
+              label="Personal Info"
+              onPress={handlePersonalInfo}
+            />
+            <ProfileMenuItem
+              icon={travelSettingsIcon}
+              label="Travel Preferences"
+              onPress={handleTravelPreferences}
+            />
+            <ProfileMenuItem
+              destructive
+              icon={logoutIcon}
+              label="Logout"
+              onPress={handleLogout}
+              showChevron={false}
+            />
+          </View>
         </View>
-
-        <Text style={styles.userName}>{userName}</Text>
-        <Text style={styles.userEmail}>{userEmail}</Text>
-      </View>
-
-      <View style={styles.menu}>
-        <ProfileMenuItem
-          icon={personalInfoIcon}
-          label="Personal Info"
-          onPress={handlePersonalInfo}
-        />
-        <ProfileMenuItem
-          icon={travelSettingsIcon}
-          label="Travel Preferences"
-          onPress={handleTravelPreferences}
-        />
-        <ProfileMenuItem
-          destructive
-          icon={logoutIcon}
-          label="Logout"
-          onPress={handleLogout}
-          showChevron={false}
-        />
       </View>
     </View>
   );
@@ -129,49 +130,58 @@ function ProfileMenuItem({
     <Pressable
       accessibilityLabel={label}
       accessibilityRole="button"
+      hitSlop={{ top: 2, bottom: 2 }}
       onPress={onPress}
       style={({ pressed }) => [styles.menuItem, pressed && styles.menuItemPressed]}
     >
       <Image contentFit="contain" source={icon} style={styles.menuIcon} />
       <Text style={[styles.menuLabel, destructive && styles.destructiveLabel]}>{label}</Text>
-      {showChevron ? <Text style={styles.chevron}>›</Text> : null}
+      {showChevron ? (
+        <Ionicons color="#4B4F63" name="chevron-forward" size={16} />
+      ) : null}
     </Pressable>
   );
 }
 
 const styles = StyleSheet.create({
-  screen: {
+  viewport: {
     flex: 1,
+    alignItems: 'center',
+    backgroundColor: '#F4F5F8',
+  },
+  mobileFrame: {
+    flex: 1,
+    width: '100%',
+    maxWidth: 414,
     backgroundColor: '#FFFFFF',
   },
-  backButton: {
-    width: 24,
-    height: 24,
-    alignItems: 'flex-start',
-    justifyContent: 'center',
+  content: {
+    flex: 1,
+    paddingHorizontal: 16,
   },
-  backIcon: {
-    color: '#111326',
-    fontSize: 20,
-    fontWeight: '400',
-    lineHeight: 22,
+  backButton: {
+    width: 44,
+    height: 44,
+    marginLeft: -12,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   controlPressed: {
     opacity: 0.55,
   },
   profileSummary: {
-    marginTop: -3,
+    marginTop: -2,
     alignItems: 'center',
   },
   avatarFrame: {
-    width: 62,
-    height: 62,
+    width: 64,
+    height: 64,
   },
   avatarPlaceholder: {
-    width: 58,
-    height: 58,
-    borderRadius: 29,
-    borderWidth: 1.25,
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    borderWidth: 1.15,
     borderColor: '#8D91A1',
     backgroundColor: '#D7D8DA',
   },
@@ -179,51 +189,49 @@ const styles = StyleSheet.create({
     position: 'absolute',
     right: 0,
     bottom: 1,
-    width: 19,
-    height: 19,
-    borderRadius: 9.5,
+    width: 20,
+    height: 20,
+    borderRadius: 10,
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: '#FFFFFF',
   },
   cameraIcon: {
-    width: 19,
-    height: 19,
+    width: 20,
+    height: 20,
   },
   userName: {
     marginTop: 8,
     color: '#181A32',
-    fontSize: 12,
+    fontSize: 14,
     fontWeight: '600',
-    lineHeight: 16,
+    lineHeight: 18,
     textAlign: 'center',
   },
   userEmail: {
     marginTop: 2,
     color: '#7C8093',
-    fontSize: 9,
+    fontSize: 11,
     fontWeight: '400',
-    lineHeight: 12,
+    lineHeight: 14,
     textAlign: 'center',
   },
   menu: {
     width: '100%',
-    maxWidth: 420,
-    alignSelf: 'center',
-    marginTop: 17,
-    gap: 9,
+    marginTop: 22,
+    gap: 10,
   },
   menuItem: {
     width: '100%',
-    height: 38,
-    borderRadius: 13,
-    paddingHorizontal: 13,
+    height: 48,
+    borderRadius: 14,
+    paddingHorizontal: 14,
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: '#FFFFFF',
     shadowColor: '#111326',
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.06,
+    shadowOpacity: 0.07,
     shadowRadius: 7,
     elevation: 2,
   },
@@ -232,24 +240,18 @@ const styles = StyleSheet.create({
     transform: [{ scale: 0.995 }],
   },
   menuIcon: {
-    width: 17,
-    height: 17,
-    marginRight: 8,
+    width: 19,
+    height: 19,
+    marginRight: 10,
   },
   menuLabel: {
     flex: 1,
     color: '#17192E',
-    fontSize: 10,
+    fontSize: 12,
     fontWeight: '500',
-    lineHeight: 14,
+    lineHeight: 16,
   },
   destructiveLabel: {
     color: '#B91C21',
-  },
-  chevron: {
-    color: '#15172C',
-    fontSize: 19,
-    fontWeight: '300',
-    lineHeight: 20,
   },
 });

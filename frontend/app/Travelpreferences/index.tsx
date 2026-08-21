@@ -1,42 +1,15 @@
-import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
+import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
-import { useState, type ComponentProps } from 'react';
+import { useState } from 'react';
 import { Alert, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { AutumnColors } from '@/constants/colors';
 import { PROFILE_TRAVEL_PREFERENCES } from '@/constants/preferences';
+import { PreferenceChip } from '@/components/onboarding/PreferenceChip';
 import { usePreferences } from '@/contexts/PreferenceContext';
 
 const DEFAULT_PREFERENCES = ['adventure', 'wine', 'nature-escapes', 'food-tourism'];
-
-type CategoryIconName = ComponentProps<typeof MaterialCommunityIcons>['name'];
-
-const CATEGORY_ICONS: Record<string, CategoryIconName> = {
-  adventure: 'compass-outline',
-  'city-breaks': 'city-variant-outline',
-  'cultural-exploration': 'bank-outline',
-  wine: 'glass-wine',
-  'beach-vacations': 'beach',
-  'nature-escapes': 'pine-tree',
-  'road-trips': 'car-outline',
-  'food-tourism': 'silverware-fork-knife',
-  'historical-sites': 'castle',
-  'music-festivals': 'music-note-outline',
-  'art-gallery': 'palette-outline',
-  'culinary-tours': 'chef-hat',
-  'group-tours': 'account-group-outline',
-  'skiing-snowboarding': 'ski',
-  'retreats-profile': 'meditation',
-  'water-activity': 'swim',
-  'bus-hop-on-hop': 'bus',
-  'cruise-vacations': 'ferry',
-  'solo-travel': 'account-outline',
-  'eco-tourism': 'leaf',
-  'spa-getaways': 'spa-outline',
-  'desert-adventures': 'cactus',
-  'fishing-tour': 'fish',
-};
 
 export default function TravelPreferencesScreen() {
   const insets = useSafeAreaInsets();
@@ -123,11 +96,11 @@ export default function TravelPreferencesScreen() {
 
           <View style={styles.grid}>
             {PROFILE_TRAVEL_PREFERENCES.map((preference) => (
-              <TravelPreferenceChip
+              <PreferenceChip
                 key={preference.id}
-                icon={CATEGORY_ICONS[preference.id] ?? 'map-marker-outline'}
                 label={preference.label}
                 onPress={() => togglePreference(preference.id)}
+                preferenceId={preference.id}
                 selected={draftPreferences.has(preference.id)}
               />
             ))}
@@ -156,35 +129,6 @@ export default function TravelPreferencesScreen() {
         </View>
       </View>
     </View>
-  );
-}
-
-type TravelPreferenceChipProps = {
-  icon: CategoryIconName;
-  label: string;
-  onPress: () => void;
-  selected: boolean;
-};
-
-function TravelPreferenceChip({ icon, label, onPress, selected }: TravelPreferenceChipProps) {
-  return (
-    <TouchableOpacity
-      accessibilityLabel={`${label}, ${selected ? 'selected' : 'not selected'}`}
-      accessibilityRole="button"
-      accessibilityState={{ selected }}
-      activeOpacity={0.7}
-      onPress={onPress}
-      style={[styles.chip, selected ? styles.chipSelected : styles.chipDefault]}
-    >
-      <MaterialCommunityIcons
-        color={selected ? AutumnColors.selectedText : AutumnColors.body}
-        name={icon}
-        size={18}
-      />
-      <Text numberOfLines={1} style={[styles.chipLabel, selected && styles.chipLabelSelected]}>
-        {label}
-      </Text>
-    </TouchableOpacity>
   );
 }
 
@@ -260,34 +204,6 @@ const styles = StyleSheet.create({
     alignItems: 'flex-start',
     columnGap: 10,
     rowGap: 14,
-  },
-  chip: {
-    minHeight: 44,
-    maxWidth: '100%',
-    borderWidth: 1.5,
-    borderRadius: 28,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  chipDefault: {
-    borderColor: AutumnColors.chipBorder,
-    backgroundColor: AutumnColors.chipBackground,
-  },
-  chipSelected: {
-    borderColor: AutumnColors.selectedBorder,
-    backgroundColor: AutumnColors.selectedBackground,
-  },
-  chipLabel: {
-    flexShrink: 1,
-    color: AutumnColors.chipText,
-    fontSize: 14,
-    fontWeight: '500',
-  },
-  chipLabelSelected: {
-    color: AutumnColors.selectedText,
   },
   bottomArea: {
     paddingTop: 12,
