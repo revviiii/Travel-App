@@ -15,3 +15,11 @@ class TravelGoalResponse(BaseModel):
     user_id: UUID
     goal_text: str
     created_at: datetime
+
+
+class GroupGoalResponse(BaseModel):
+    id: UUID
+    trip_id: UUID
+    created_by: UUID
+    goal_text: str
+    created_at: datetime

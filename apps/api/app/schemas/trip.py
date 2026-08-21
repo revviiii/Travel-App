@@ -44,6 +44,9 @@ class TripMemberResponse(BaseModel):
     user_id: UUID
     role: TripRole
     joined_at: datetime
+    full_name: str | None = None
+    avatar_url: str | None = None
+    preference_keys: list[str] = Field(default_factory=list)
 
 
 def default_invitation_expiry() -> datetime:

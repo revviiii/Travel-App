@@ -94,6 +94,7 @@ export function DiscoveryFilterPanel({
               <PreferenceChip
                 key={cat.id}
                 label={cat.label}
+                preferenceId={cat.id}
                 selected={tempSelection.has(cat.id)}
                 onPress={() => toggleCategory(cat.id)}
               />

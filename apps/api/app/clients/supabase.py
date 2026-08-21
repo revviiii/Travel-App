@@ -182,6 +182,52 @@ class SupabaseClient:
         if not rows:
             raise SupabaseResourceNotFoundError("Travel goal was not found")
 
+    async def list_group_goals(self, trip_id: UUID) -> list[Mapping[str, object]]:
+        return await self._request_rows(
+            "GET",
+            "/rest/v1/group_goals",
+            params={
+                "trip_id": f"eq.{trip_id}",
+                "select": "id,trip_id,created_by,goal_text,created_at",
+                "order": "created_at.desc",
+            },
+        )
+
+    async def create_group_goal(
+        self,
+        trip_id: UUID,
+        user_id: UUID,
+        goal_text: str,
+    ) -> Mapping[str, object]:
+        rows = await self._request_rows(
+            "POST",
+            "/rest/v1/group_goals",
+            params={"select": "id,trip_id,created_by,goal_text,created_at"},
+            json={
+                "trip_id": str(trip_id),
+                "created_by": str(user_id),
+                "goal_text": goal_text,
+            },
+            headers={"Prefer": "return=representation"},
+        )
+        if not rows:
+            raise SupabaseApiError("Group goal was not created")
+        return rows[0]
+
+    async def delete_group_goal(self, trip_id: UUID, goal_id: UUID) -> None:
+        rows = await self._request_rows(
+            "DELETE",
+            "/rest/v1/group_goals",
+            params={
+                "id": f"eq.{goal_id}",
+                "trip_id": f"eq.{trip_id}",
+                "select": "id",
+            },
+            headers={"Prefer": "return=representation"},
+        )
+        if not rows:
+            raise SupabaseResourceNotFoundError("Group goal was not found")
+
     async def create_trip(
         self,
         user_id: UUID,
@@ -220,15 +266,40 @@ class SupabaseClient:
         return (await self._add_trip_membership(trips, user_id))[0]
 
     async def list_trip_members(self, trip_id: UUID) -> list[Mapping[str, object]]:
-        return await self._request_rows(
+        members = await self._request_rows(
             "GET",
             "/rest/v1/trip_members",
             params={
                 "trip_id": f"eq.{trip_id}",
-                "select": "user_id,role,joined_at",
+                "select": (
+                    "user_id,role,joined_at,"
+                    "profile:profiles!trip_members_user_id_fkey("
+                    "full_name,avatar_url,user_preferences(preference_key))"
+                ),
                 "order": "joined_at.asc",
             },
         )
+        enriched: list[Mapping[str, object]] = []
+        for member in members:
+            profile_value = member.get("profile")
+            profile = profile_value if isinstance(profile_value, Mapping) else {}
+            preferences_value = profile.get("user_preferences", [])
+            preferences = preferences_value if isinstance(preferences_value, list) else []
+            enriched.append(
+                {
+                    "user_id": member["user_id"],
+                    "role": member["role"],
+                    "joined_at": member["joined_at"],
+                    "full_name": profile.get("full_name"),
+                    "avatar_url": profile.get("avatar_url"),
+                    "preference_keys": [
+                        str(preference["preference_key"])
+                        for preference in preferences
+                        if isinstance(preference, Mapping) and preference.get("preference_key")
+                    ],
+                }
+            )
+        return enriched
 
     async def delete_trip(self, trip_id: UUID) -> None:
         rows = await self._request_rows(

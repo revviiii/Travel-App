@@ -9,6 +9,8 @@ interface PlaceCardProps {
   status: string;
   actionLabel?: string;
   onActionPress?: () => void;
+  /** Optional callback for the circular Add-to-Itinerary action */
+  onAddToItinerary?: () => void;
 }
 
 /**
@@ -24,7 +26,12 @@ export function PlaceCard({
   status,
   actionLabel = 'View details',
   onActionPress,
+  onAddToItinerary,
 }: PlaceCardProps) {
+  const action = onActionPress ?? onAddToItinerary;
+  const resolvedActionLabel =
+    actionLabel === 'View details' && onAddToItinerary ? 'Add to itinerary' : actionLabel;
+
   return (
     <View style={styles.card}>
       {/* TODO: Replace with actual place image from API */}
@@ -51,12 +58,13 @@ export function PlaceCard({
 
       {/* TODO: Replace with final Figma link/share SVG icon */}
       <TouchableOpacity
-        disabled={!onActionPress}
-        onPress={onActionPress}
+        disabled={!action}
+        onPress={action}
         style={styles.linkButton}
         accessibilityRole="button"
-        accessibilityLabel={actionLabel}
+        accessibilityLabel={resolvedActionLabel}
       >
+        {/* TODO: Replace with final Figma Add-to-Itinerary SVG */}
         <View style={styles.linkIconPlaceholder} />
       </TouchableOpacity>
     </View>

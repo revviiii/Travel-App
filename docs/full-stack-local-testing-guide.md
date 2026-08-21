@@ -27,17 +27,19 @@ that address means the emulator itself.
 | Feature | Current source of data | Expected test result |
 | --- | --- | --- |
 | Email signup and login | Supabase Auth | Connected |
-| Profiles | Supabase PostgreSQL through FastAPI | Connected API; limited frontend UI |
+| Profiles | Supabase PostgreSQL through FastAPI | Connected and editable in the app |
 | Group creation/list/deletion | `trips` and `trip_members` tables | Connected and persistent |
 | Travel goals | `travel_goals` table | Connected and persistent |
+| Group goals | `group_goals` table | Connected, persistent, and live for members |
 | Nearby recommendations | Google Places API through FastAPI | Connected when a valid Google key is configured |
 | Route line/distance/duration | Google Routes API through FastAPI | Connected when a valid Google key is configured |
 | Saved places and votes | Supabase tables through FastAPI | Connected and persistent |
-| Preference screen | Temporary frontend context | Backend endpoints exist; frontend persistence is still pending |
-| Invitations/members | Supabase through FastAPI | Backend complete; full frontend UI is still pending |
+| Preference screen | `user_preferences` through FastAPI | Connected and persistent |
+| Invitations/members | Supabase through FastAPI | Connected with secure app invitation links |
 | Shared itinerary | Member-selected dates/times, voting, and leader finalization through FastAPI | Connected and persistent |
 | Calendar sync | Device calendar through Expo Calendar | Confirmed/orange places only |
-| Route cache | Not completed | Do not report this as working yet |
+| Live collaboration | Supabase Realtime with RLS | Votes and saved-place changes refresh for group members |
+| Maps cost control | FastAPI per-user throttling and Google Cloud quotas | Connected; `429` prevents request bursts |
 
 ## 1. Pull the newest code first
 
@@ -49,6 +51,7 @@ terminal prompt should end in `Travel-App-1`.
 ```powershell
 git status
 git branch --show-current
+git switch main
 git pull --ff-only origin main
 ```
 
@@ -225,6 +228,8 @@ SUPABASE_PUBLISHABLE_KEY=<paste-local-publishable-key>
 SUPABASE_SECRET_KEY=<paste-local-secret-key>
 
 GOOGLE_MAPS_API_KEY=<obtain-from-Ramyl-securely>
+GOOGLE_PLACES_REQUESTS_PER_MINUTE=12
+GOOGLE_ROUTES_REQUESTS_PER_MINUTE=20
 
 CORS_ORIGINS=http://localhost:8081
 ```
@@ -367,6 +372,10 @@ output, and FastAPI terminal error for any failure.
 - In Studio, verify rows in `trips` and `trip_members`.
 - Long-press a group owned by the test user, confirm deletion, and verify both
   the UI and database update.
+- Open a group and verify its real name, members, preferences, and saved-place
+  count load instead of placeholder data.
+- As its owner, create/share an invitation. Open the link while signed in as a
+  second local account and verify that account joins the group.
 
 ### Travel goals
 
@@ -374,6 +383,13 @@ output, and FastAPI terminal error for any failure.
 - Close/reopen the app and verify it remains.
 - Verify the row in Studio's `travel_goals` table.
 - Long-press the goal and delete it.
+
+### Group goals
+
+- Open a group, enter its Discovery screen, and select Goals.
+- Add a shared goal and verify it appears for another signed-in group member.
+- Restart the app and verify the goal persists in `group_goals`.
+- Verify its creator or a group owner/admin can delete it.
 
 ### Google map, nearby places, and route
 
@@ -397,6 +413,8 @@ output, and FastAPI terminal error for any failure.
 - Verify the scheduled place appears at the selected day/time with a gray
   tracker while it is pending.
 - Vote, verify the count changes, then remove the vote.
+- Keep the same group open on a second signed-in device/session and verify vote
+  and saved-place changes refresh through Realtime.
 - When every current member votes, verify its tracker and card become orange.
 - Restart the app and verify the schedule and confirmation state remain.
 - In Studio, inspect `places`, `trip_places`, and `votes`.
@@ -417,16 +435,12 @@ output, and FastAPI terminal error for any failure.
   calendar, and verify only orange places were added. Gray proposals must never
   be exported.
 
-### Known incomplete frontend paths
+### Profile and preferences
 
-- Preference choices currently update the frontend session but are not yet
-  written to `user_preferences` by the Preferences screen.
-- Invitation/member management APIs exist, but the complete user-facing flow is
-  not yet available.
-- Route caching and live Realtime itinerary updates are not yet available.
-
-Do not file these known items as new regressions. Check the current roadmap or
-ask Ramyl whether their implementation status changed.
+- Open the profile screen and verify the authenticated name/email appear.
+- Edit Personal Info, restart the app, and verify the values persist.
+- Change Travel Preferences, restart the app, and verify the selection persists.
+- In Studio, verify `profiles` and `user_preferences` contain the same values.
 
 ## 10. How the frontend is expected to call the backend
 
@@ -439,7 +453,7 @@ Authorization: Bearer <signed-in-user-access-token>
 
 Frontend code must not send the Supabase secret key or Google key. Do not call
 Google Places or Routes directly from React Native; those calls belong in
-FastAPI so keys, field masks, quotas, error translation, and caching remain
+FastAPI so keys, field masks, quotas, throttling, and error translation remain
 server-controlled.
 
 Before changing an endpoint, read `docs/api-contracts.md`. Coordinate the

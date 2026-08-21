@@ -5,15 +5,19 @@ schema, migrations, Auth integration, row-level security, external service
 clients, tests, API contracts, and local/deployment configuration. This also
 includes the server-side Google Places and Google Routes integrations.
 
-Current highest-priority remaining work:
+Completion update (August 22, 2026):
 
-1. Complete and live-test the persisted scheduled-proposal itinerary flow.
-2. Replace the frontend's temporary preference context with the existing
-   database-backed preference endpoints.
-3. Add route caching, explicit refresh rules, and provider cost controls.
-4. Add Realtime subscriptions where the group UI needs live votes or updates.
-5. Complete integration tests, deployment configuration, monitoring, and the
-   frontend handoff checklist.
+1. The scheduled-proposal, unanimous-vote, leader-finalization, and
+   confirmed-only calendar flow is implemented and tested.
+2. Profile and preference screens now use the authenticated FastAPI endpoints.
+3. Google endpoints have per-user throttling, strict result limits, safe field
+   masks, and mocked tests. A persistent response cache was intentionally not
+   added because current Google Maps policies restrict caching most Places and
+   Routes content; Google Cloud quotas remain required.
+4. Realtime publication/subscriptions refresh collaborative saved places and
+   votes while preserving RLS.
+5. Automated checks, container deployment configuration, request IDs/logging,
+   API contracts, and the full teammate testing handoff are implemented.
 
 ## 1. Protect and scaffold the repository
 
@@ -78,7 +82,7 @@ Priority after the August 20 itinerary workflow update:
    /api/v1/me/preferences`; it currently uses temporary in-memory state.
 3. Keep signup/login, group CRUD, travel goals, Google discovery/routes, saved
    places, voting, and shared itineraries covered by integration tests.
-4. Add route-result caching and Realtime updates without weakening RLS.
+4. Keep request throttling and Realtime updates working without weakening RLS.
 5. Prepare hosted development configuration and repeatable deployment checks.
 
 Implement in this order:
@@ -125,7 +129,8 @@ are complete.
 4. Call `POST https://places.googleapis.com/v1/places:searchNearby`.
 5. Always send `X-Goog-FieldMask`; never use `*` in production.
 6. Normalize Google's response into your own place response schema.
-7. Cache only the data permitted by Google's current terms and refresh rules.
+7. Store/cache only data permitted by Google's current terms; stable Place IDs
+   are the long-term identifier exception.
 8. Store the stable Google Place ID with each pinned place.
 9. Add timeouts and translate Google failures into safe API errors.
 10. Unit-test the client with mocked HTTP responses before using real quota.
@@ -150,8 +155,8 @@ tests, and a live request using an API-restricted Google key are complete.
 3. Call `POST https://routes.googleapis.com/directions/v2:computeRoutes`.
 4. Always request an explicit field mask.
 5. Normalize distance, duration, encoded polyline, and route legs.
-6. Cache results using origin, destination, mode, and departure-time buckets.
-7. Recalculate when itinerary ordering or travel mode changes.
+6. Recalculate only after an explicit user action or meaningful input change.
+7. Throttle repeat requests and enforce stricter provider quotas in Google Cloud.
 8. Display Google's required attribution with route results.
 9. Unit-test with mocked responses and only then make a live call.
 
@@ -171,7 +176,8 @@ Current progress: `places`, `trip_places`, `votes`, `itineraries`, and
 provider snapshot timestamp, duplicate-place prevention per trip, one vote per
 user/place, member RLS, authenticated APIs, Discovery save/vote controls,
 owner/admin vote-and-distance finalization, saved-place validation, and
-persisted itinerary display. Route-cache storage remains.
+persisted itinerary display, and Realtime collaboration. Persistent Google
+response caching is excluded pending an applicable Google license/policy basis.
 
 Add migrations for:
 
@@ -181,7 +187,6 @@ trip_places
 votes
 itineraries
 itinerary_items
-route_cache
 ```
 
 Enforce one vote per user and place with a unique constraint. Store itinerary
@@ -205,6 +210,6 @@ previous item.
 - FastAPI tests pass.
 - Google calls are mocked in normal tests.
 - Real Google calls happen only in explicit integration tests.
-- Field masks, quotas, caching, and key restrictions control cost.
+- Field masks, per-user throttling, provider quotas, and key restrictions control cost.
 - The mobile app can create a trip, discover a place, vote, add it to an
   itinerary, and retrieve a route.

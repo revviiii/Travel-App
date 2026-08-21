@@ -1,0 +1,220 @@
+import { useEffect, useState } from 'react';
+import {
+  ActivityIndicator,
+  Modal,
+  Share,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+} from 'react-native';
+import { AutumnColors } from '@/constants/colors';
+import { createTripInvitation } from '@/lib/api';
+
+interface GroupInviteSheetProps {
+  visible: boolean;
+  groupId: string;
+  groupName: string;
+  canInvite: boolean;
+  onClose: () => void;
+}
+
+/**
+ * A bottom-sheet modal for inviting friends to a group.
+ * Creates a real, seven-day backend invitation and shares its deep link.
+ */
+export function GroupInviteSheet({
+  visible,
+  groupId,
+  groupName,
+  canInvite,
+  onClose,
+}: GroupInviteSheetProps) {
+  const [inviteLink, setInviteLink] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!visible) {
+      setInviteLink(null);
+      setErrorMessage(null);
+    }
+  }, [visible]);
+
+  const ensureInviteLink = async () => {
+    if (inviteLink) return inviteLink;
+    if (!canInvite) {
+      throw new Error('Only the group owner or an admin can invite members.');
+    }
+
+    setIsLoading(true);
+    setErrorMessage(null);
+    try {
+      const invitation = await createTripInvitation(groupId);
+      const generatedLink = `frontend://invite/${invitation.invite_token}`;
+      setInviteLink(generatedLink);
+      return generatedLink;
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleShare = async () => {
+    try {
+      const link = await ensureInviteLink();
+      await Share.share({
+        message: `Join my travel group "${groupName}"!\n\n${link}`,
+      });
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : 'Unable to create invitation.');
+    }
+  };
+
+  return (
+    <Modal
+      visible={visible}
+      transparent
+      animationType="slide"
+      onRequestClose={onClose}
+    >
+      <View style={styles.overlay}>
+        <View style={styles.sheet}>
+          {/* Drag handle visual */}
+          <View style={styles.handleBar} />
+
+          <Text style={styles.title}>Invite friends to your Group</Text>
+
+          {/* Share button */}
+          <TouchableOpacity
+            activeOpacity={0.85}
+            onPress={handleShare}
+            accessibilityRole="button"
+            accessibilityLabel="Share group invitation"
+            style={styles.shareButton}
+            disabled={isLoading || !canInvite}
+          >
+            {/* TODO: Replace with final Figma Share SVG */}
+            <View style={styles.shareIconPlaceholder} />
+            {isLoading ? (
+              <ActivityIndicator color="#FFFFFF" />
+            ) : (
+              <Text style={styles.shareText}>
+                {canInvite ? 'Create & Share' : 'Invite unavailable'}
+              </Text>
+            )}
+          </TouchableOpacity>
+
+          <Text style={styles.orText}>or</Text>
+
+          <View style={styles.linkContainer}>
+            <Text style={styles.linkText} selectable>
+              {inviteLink ?? 'A secure invitation link will appear here.'}
+            </Text>
+          </View>
+
+          {errorMessage ? <Text style={styles.errorText}>{errorMessage}</Text> : null}
+
+          {/* Close */}
+          <TouchableOpacity
+            onPress={onClose}
+            accessibilityRole="button"
+            accessibilityLabel="Close"
+            style={styles.closeButton}
+          >
+            <Text style={styles.closeText}>Close</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    </Modal>
+  );
+}
+
+const styles = StyleSheet.create({
+  overlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.4)',
+    justifyContent: 'flex-end',
+  },
+  sheet: {
+    backgroundColor: AutumnColors.background,
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    paddingTop: 12,
+    paddingHorizontal: 24,
+    paddingBottom: 32,
+    alignItems: 'center',
+  },
+  handleBar: {
+    width: 40,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: AutumnColors.chipBorder,
+    marginBottom: 20,
+  },
+  title: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: AutumnColors.heading,
+    textAlign: 'center',
+    marginBottom: 20,
+  },
+  shareButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: AutumnColors.primary,
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    borderRadius: 24,
+    gap: 8,
+  },
+  shareIconPlaceholder: {
+    width: 16,
+    height: 16,
+    borderRadius: 4,
+    backgroundColor: 'rgba(255,255,255,0.5)',
+  },
+  shareText: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#FFFFFF',
+  },
+  orText: {
+    fontSize: 14,
+    fontWeight: '400',
+    color: AutumnColors.body,
+    marginVertical: 14,
+  },
+  linkContainer: {
+    width: '100%',
+    backgroundColor: AutumnColors.chipBackground,
+    borderWidth: 1,
+    borderColor: AutumnColors.chipBorder,
+    borderRadius: 10,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    alignItems: 'center',
+    marginBottom: 20,
+  },
+  linkText: {
+    fontSize: 13,
+    fontWeight: '400',
+    color: AutumnColors.primary,
+    textDecorationLine: 'underline',
+  },
+  closeButton: {
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+  },
+  errorText: {
+    color: '#A23A2A',
+    fontSize: 12,
+    marginBottom: 8,
+    textAlign: 'center',
+  },
+  closeText: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: AutumnColors.body,
+  },
+});

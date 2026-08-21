@@ -1,61 +1,63 @@
 import {
+  ActivityIndicator,
+  Alert,
   ScrollView,
   StyleSheet,
   Text,
   TouchableOpacity,
   View,
 } from 'react-native';
+import { useState } from 'react';
+import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { AutumnColors } from '@/constants/colors';
 import { PREFERENCE_CATEGORIES } from '@/constants/preferences';
 import { PreferenceChip } from '@/components/onboarding/PreferenceChip';
 import { usePreferences } from '@/contexts/PreferenceContext';
-
-// TODO: Redirect returning users directly to the main app when preferences are already completed
+import { replaceMyPreferences, updateMyProfile } from '@/lib/api';
 
 export default function PreferencesScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { selectedPreferences, togglePreference, maxPreferences } = usePreferences();
+  const [isSaving, setIsSaving] = useState(false);
 
-  const handleBack = () => {
-    router.back();
+  const saveAndContinue = async (preferenceKeys: string[]) => {
+    setIsSaving(true);
+    try {
+      await Promise.all([
+        replaceMyPreferences(preferenceKeys),
+        updateMyProfile({ onboarding_completed: true }),
+      ]);
+      router.replace('/home');
+    } catch (error) {
+      Alert.alert(
+        'Unable to save preferences',
+        error instanceof Error ? error.message : 'Please try again.',
+      );
+    } finally {
+      setIsSaving(false);
+    }
   };
 
-  const handleSkip = () => {
-    // TODO: Persist user preferences when backend integration is available
-    router.replace('/home');
-  };
+  const handleSkip = () => void saveAndContinue([]);
 
-  const handleContinue = () => {
-    // TODO: Persist selected preferences when backend integration is implemented
-    router.replace('/home');
-  };
+  const handleContinue = () => void saveAndContinue([...selectedPreferences]);
 
   return (
     <View style={[styles.screen, { paddingTop: insets.top + 12 }]}>
       {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity
-          onPress={handleBack}
-          accessibilityRole="button"
-          accessibilityLabel="Go back"
-          style={styles.backButton}
-        >
-          {/* TODO: Replace with final Figma back-arrow SVG */}
-          <View style={styles.backIconPlaceholder} />
-        </TouchableOpacity>
-
-        <TouchableOpacity
           onPress={handleSkip}
           accessibilityRole="button"
           accessibilityLabel="Skip preferences"
           style={styles.skipButton}
+          disabled={isSaving}
         >
           <Text style={styles.skipText}>Skip</Text>
-          {/* TODO: Replace with final Figma skip-chevron SVG */}
-          <View style={styles.chevronPlaceholder} />
+          <Ionicons color={AutumnColors.primary} name="chevron-forward" size={16} />
         </TouchableOpacity>
       </View>
 
@@ -84,6 +86,7 @@ export default function PreferencesScreen() {
             <PreferenceChip
               key={pref.id}
               label={pref.label}
+              preferenceId={pref.id}
               selected={selectedPreferences.has(pref.id)}
               onPress={() => togglePreference(pref.id)}
             />
@@ -99,10 +102,13 @@ export default function PreferencesScreen() {
           accessibilityRole="button"
           accessibilityLabel="Continue"
           style={styles.continueButton}
+          disabled={isSaving}
         >
-          <Text style={styles.continueText}>Continue</Text>
-          {/* TODO: Replace with final Continue arrow SVG */}
-          <View style={styles.continueArrowPlaceholder} />
+          {isSaving ? (
+            <ActivityIndicator color="#FFFFFF" />
+          ) : (
+            <Text style={styles.continueText}>Continue</Text>
+          )}
         </TouchableOpacity>
       </View>
     </View>
@@ -118,23 +124,10 @@ const styles = StyleSheet.create({
   /* Header */
   header: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
+    justifyContent: 'flex-end',
     alignItems: 'center',
-    paddingHorizontal: 20,
+    paddingRight: 20,
     marginBottom: 8,
-  },
-  backButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  backIconPlaceholder: {
-    width: 20,
-    height: 20,
-    borderRadius: 4,
-    backgroundColor: AutumnColors.chipBorder,
   },
   skipButton: {
     flexDirection: 'row',
@@ -147,12 +140,6 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: '500',
     color: AutumnColors.primary,
-  },
-  chevronPlaceholder: {
-    width: 12,
-    height: 12,
-    borderRadius: 3,
-    backgroundColor: AutumnColors.chipBorder,
   },
 
   /* Scrollable content */
@@ -228,14 +215,5 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
     color: '#FFFFFF',
-  },
-  continueArrowPlaceholder: {
-    width: 18,
-    height: 18,
-    borderRadius: 4,
-    backgroundColor: 'rgba(255,255,255,0.35)',
-    marginLeft: 8,
-    position: 'absolute',
-    right: 20,
   },
 });

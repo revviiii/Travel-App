@@ -9,6 +9,7 @@ def test_health_check() -> None:
     response = client.get("/api/v1/health")
 
     assert response.status_code == 200
+    assert response.headers["x-request-id"]
     assert response.json() == {
         "status": "healthy",
         "service": "travel-app-api",

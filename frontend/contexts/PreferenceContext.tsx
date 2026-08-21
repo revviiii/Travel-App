@@ -20,6 +20,8 @@ interface PreferenceContextValue {
   selectedPreferences: Set<string>;
   /** Toggle a preference. If already selected, deselects. If not selected and under max, selects. */
   togglePreference: (id: string) => void;
+  /** Replace the current preferences, capped at the configured maximum. */
+  setPreferences: (ids: Iterable<string>) => void;
   /** Whether the maximum number of preferences has been reached */
   isMaxReached: boolean;
   /** Maximum allowed selections */
@@ -46,6 +48,10 @@ export function PreferenceProvider({ children }: { children: ReactNode }) {
     });
   }, []);
 
+  const setPreferences = useCallback((ids: Iterable<string>) => {
+    setSelectedPreferences(new Set(Array.from(ids).slice(0, MAX_PREFERENCES)));
+  }, []);
+
   const isMaxReached = selectedPreferences.size >= MAX_PREFERENCES;
 
   return (
@@ -53,6 +59,7 @@ export function PreferenceProvider({ children }: { children: ReactNode }) {
       value={{
         selectedPreferences,
         togglePreference,
+        setPreferences,
         isMaxReached,
         maxPreferences: MAX_PREFERENCES,
       }}

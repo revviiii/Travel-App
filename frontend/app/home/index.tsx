@@ -11,7 +11,7 @@ import {
   View,
 } from 'react-native';
 import { Image } from 'expo-image';
-import { useRouter, RelativePathString } from 'expo-router';
+import { useRouter, type RelativePathString } from 'expo-router';
 import MapView, { Marker } from 'react-native-maps';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { AutumnColors } from '@/constants/colors';
@@ -27,6 +27,7 @@ import {
   deleteTravelGoal,
   deleteTrip,
   getTravelGoals,
+  getMyProfile,
   getTrips,
   TravelGoal,
   TripSummary,
@@ -80,8 +81,15 @@ export default function HomeScreen() {
   const [goalError, setGoalError] = useState<string | null>(null);
   const [goalToDelete, setGoalToDelete] = useState<string | null>(null);
 
-  // TODO: Replace with authenticated user's profile name
-  const userName = 'Traveler';
+  const [userName, setUserName] = useState('Traveler');
+
+  const handleProfilePress = useCallback(() => {
+    router.push('/Userprofile' as RelativePathString);
+  }, [router]);
+
+  const handleSettingsPress = useCallback(() => {
+    // TODO: Navigate to the settings screen when that route is implemented
+  }, []);
 
   // --- Search ---
   const handleSearchSubmit = useCallback(() => {
@@ -157,6 +165,9 @@ export default function HomeScreen() {
   useEffect(() => {
     void loadGroups();
     void loadGoals();
+    void getMyProfile()
+      .then((profile) => setUserName(profile.full_name || 'Traveler'))
+      .catch(() => undefined);
   }, [loadGoals, loadGroups]);
 
   const handleAddGoal = useCallback(async (goalText: string) => {
@@ -202,7 +213,7 @@ export default function HomeScreen() {
         name={item.name}
         memberCount={item.memberCount}
         onPress={() => {
-          const path = `/discovery?tripId=${encodeURIComponent(item.id)}&section=itinerary` as RelativePathString;
+          const path = `/group/${item.id}` as RelativePathString;
           router.push(path);
         }}
         onLongPress={
@@ -405,6 +416,7 @@ export default function HomeScreen() {
             accessibilityLabel="Open profile"
             accessibilityRole="button"
             hitSlop={10}
+            onPress={handleProfilePress}
             style={styles.profileButton}
           >
             <View style={styles.avatarPlaceholder} />
@@ -417,6 +429,7 @@ export default function HomeScreen() {
           accessibilityLabel="Open settings"
           accessibilityRole="button"
           hitSlop={10}
+          onPress={handleSettingsPress}
           style={styles.settingsButton}
         >
           <Image source={settingsIcon} style={styles.settingsIcon} contentFit="contain" />

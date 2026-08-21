@@ -53,3 +53,5 @@ real API keys.
 - [Backend architecture](docs/architecture.md)
 - [Backend API contracts](docs/api-contracts.md)
 - [Google Maps integration](docs/google-maps-integration.md)
+- [Backend deployment guide](docs/backend-deployment-guide.md)
+- [Backend and database handoff](docs/backend-database-handoff.md)

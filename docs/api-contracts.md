@@ -73,6 +73,10 @@ response, cost controls, and mobile handoff.
 Returns normalized distance, duration, route legs, and an encoded polyline for
 an origin, destination, and travel mode.
 
+Both Maps endpoints are authenticated and rate-limited per user. A burst above
+the configured limit returns `429` and a `Retry-After` header without spending a
+Google request.
+
 ## Trips (called Groups in the UI)
 
 ### `POST /api/v1/trips`
@@ -97,7 +101,8 @@ Returns one visible trip, or `404` when it does not exist or RLS hides it.
 
 ### `GET /api/v1/trips/{trip_id}/members`
 
-Returns the visible trip membership list.
+Returns the visible trip membership list, including each member's role, profile
+name/avatar, and travel preference keys.
 
 ### `DELETE /api/v1/trips/{trip_id}`
 
@@ -144,6 +149,22 @@ Creates a goal of up to 100 characters:
 
 Deletes only a goal owned by the authenticated user. A missing goal or one
 hidden by RLS returns `404`.
+
+## Group goals
+
+### `GET /api/v1/trips/{trip_id}/goals`
+
+Returns shared goals to authenticated members of the selected group.
+
+### `POST /api/v1/trips/{trip_id}/goals`
+
+Creates a shared goal or challenge of up to 100 characters. Any trip member may
+add one.
+
+### `DELETE /api/v1/trips/{trip_id}/goals/{goal_id}`
+
+The creator or a group owner/admin may delete a shared goal. Group-goal changes
+are published through Supabase Realtime and remain protected by trip-member RLS.
 
 ## Saved trip places and voting
 

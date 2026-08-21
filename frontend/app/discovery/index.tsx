@@ -32,22 +32,25 @@ import { DiscoveryBottomSheet } from '@/components/discovery/DiscoveryBottomShee
 import { DiscoveryFilterPanel } from '@/components/discovery/DiscoveryFilterPanel';
 import {
   computeRoute,
+  createGroupGoal,
   createTravelGoal,
+  deleteGroupGoal,
   deleteTravelGoal,
   finalizeTripItinerary,
+  getGroupGoals,
   getTravelGoals,
   getTripPlaces,
   getTrips,
   type PlaceMarker,
   type PreferenceKey,
   type SavedTripPlace,
-  type TravelGoal,
   type TripSummary,
   savePlaceToTrip,
   searchNearbyPlaces,
   setTripPlaceVote,
 } from '@/lib/api';
 import { decodeGooglePolyline } from '@/lib/polyline';
+import { supabase } from '@/lib/supabase';
 
 type DiscoverySection = 'preferences' | 'itinerary' | 'goals';
 
@@ -96,6 +99,7 @@ export default function DiscoveryScreen() {
     section?: DiscoverySection;
   }>();
   const { selectedPreferences } = usePreferences();
+  const isGroupMode = Boolean(tripId);
 
   const [activeTab, setActiveTab] = useState<DiscoverySection>(
     section === 'itinerary' || section === 'goals' ? section : 'preferences',
@@ -138,7 +142,7 @@ export default function DiscoveryScreen() {
   const [calendarChoices, setCalendarChoices] = useState<Calendar.Calendar[]>([]);
   const [showCalendarPicker, setShowCalendarPicker] = useState(false);
   const [isSyncingCalendar, setIsSyncingCalendar] = useState(false);
-  const [goals, setGoals] = useState<TravelGoal[]>([]);
+  const [goals, setGoals] = useState<{ id: string; goal_text: string }[]>([]);
   const [isLoadingGoals, setIsLoadingGoals] = useState(true);
   const [goalError, setGoalError] = useState<string | null>(null);
   const [goalToDelete, setGoalToDelete] = useState<string | null>(null);
@@ -267,13 +271,76 @@ export default function DiscoveryScreen() {
   }, [selectedTripId]);
 
   useEffect(() => {
+    if (!selectedTripId) return;
+
+    let isCurrent = true;
+    let refreshTimer: ReturnType<typeof setTimeout> | null = null;
+    const refreshSavedPlaces = () => {
+      if (refreshTimer) clearTimeout(refreshTimer);
+      refreshTimer = setTimeout(() => {
+        void getTripPlaces(selectedTripId)
+          .then((saved) => {
+            if (isCurrent) setSavedPlaces(saved);
+          })
+          .catch(() => undefined);
+      }, 250);
+    };
+    const refreshGroupGoals = () => {
+      if (!isGroupMode) return;
+      void getGroupGoals(selectedTripId)
+        .then((updatedGoals) => {
+          if (isCurrent) setGoals(updatedGoals);
+        })
+        .catch(() => undefined);
+    };
+
+    const channel = supabase
+      .channel(`trip-updates:${selectedTripId}`)
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'trip_places',
+          filter: `trip_id=eq.${selectedTripId}`,
+        },
+        refreshSavedPlaces,
+      )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'votes' },
+        refreshSavedPlaces,
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'group_goals',
+          filter: `trip_id=eq.${selectedTripId}`,
+        },
+        refreshGroupGoals,
+      )
+      .subscribe();
+
+    return () => {
+      isCurrent = false;
+      if (refreshTimer) clearTimeout(refreshTimer);
+      void supabase.removeChannel(channel);
+    };
+  }, [isGroupMode, selectedTripId]);
+
+  useEffect(() => {
     let isCurrent = true;
 
     async function loadGoals() {
       setIsLoadingGoals(true);
       setGoalError(null);
       try {
-        const persistedGoals = await getTravelGoals();
+        const persistedGoals =
+          isGroupMode && selectedTripId
+            ? await getGroupGoals(selectedTripId)
+            : await getTravelGoals();
         if (isCurrent) {
           setGoals(persistedGoals);
         }
@@ -292,7 +359,7 @@ export default function DiscoveryScreen() {
     return () => {
       isCurrent = false;
     };
-  }, []);
+  }, [isGroupMode, selectedTripId]);
 
   const toggleFilter = (id: string) => {
     setActiveFilterOrder((prev) => {
@@ -515,7 +582,10 @@ export default function DiscoveryScreen() {
 
   const handleAddGoal = useCallback(async (text: string) => {
     try {
-      const goal = await createTravelGoal(text);
+      const goal =
+        isGroupMode && selectedTripId
+          ? await createGroupGoal(selectedTripId, text)
+          : await createTravelGoal(text);
       setGoals((current) => [goal, ...current]);
     } catch (error) {
       Alert.alert(
@@ -524,7 +594,7 @@ export default function DiscoveryScreen() {
       );
       throw error;
     }
-  }, []);
+  }, [isGroupMode, selectedTripId]);
 
   const handleLongPressGoal = useCallback((id: string) => {
     setGoalToDelete(id);
@@ -533,7 +603,11 @@ export default function DiscoveryScreen() {
   const handleConfirmDeleteGoal = useCallback(async () => {
     if (goalToDelete !== null) {
       try {
-        await deleteTravelGoal(goalToDelete);
+        if (isGroupMode && selectedTripId) {
+          await deleteGroupGoal(selectedTripId, goalToDelete);
+        } else {
+          await deleteTravelGoal(goalToDelete);
+        }
         setGoals((current) => current.filter((goal) => goal.id !== goalToDelete));
         setGoalToDelete(null);
       } catch (error) {
@@ -543,14 +617,14 @@ export default function DiscoveryScreen() {
         );
       }
     }
-  }, [goalToDelete]);
+  }, [goalToDelete, isGroupMode, selectedTripId]);
 
   const handleCancelDeleteGoal = useCallback(() => {
     setGoalToDelete(null);
   }, []);
 
   const renderGoalItem = useCallback(
-    ({ item }: { item: TravelGoal }) => (
+    ({ item }: { item: { id: string; goal_text: string } }) => (
       <TravelGoalCard text={item.goal_text} onLongPress={() => handleLongPressGoal(item.id)} />
     ),
     [handleLongPressGoal],
@@ -900,8 +974,12 @@ export default function DiscoveryScreen() {
               </View>
             ) : goals.length === 0 ? (
               <EmptyState
-                title="No travel goals yet!"
-                description="Add a goal for your next adventure."
+                title={isGroupMode ? 'No group goals yet!' : 'No travel goals yet!'}
+                description={
+                  isGroupMode
+                    ? 'Add a shared challenge for this group.'
+                    : 'Add a goal for your next adventure.'
+                }
               />
             ) : (
               <FlatList

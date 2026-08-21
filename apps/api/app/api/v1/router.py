@@ -2,6 +2,7 @@ from fastapi import APIRouter
 
 from app.api.v1.endpoints import (
     goals,
+    group_goals,
     health,
     invitations,
     itineraries,
@@ -18,5 +19,6 @@ api_router.include_router(maps.router)
 api_router.include_router(trips.router)
 api_router.include_router(invitations.router)
 api_router.include_router(goals.router)
+api_router.include_router(group_goals.router)
 api_router.include_router(trip_places.router)
 api_router.include_router(itineraries.router)

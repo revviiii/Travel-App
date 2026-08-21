@@ -58,9 +58,64 @@ export type TripSummary = {
   status: 'planning' | 'active' | 'completed' | 'cancelled';
 };
 
+export type TripMember = {
+  user_id: string;
+  role: 'owner' | 'admin' | 'member';
+  joined_at: string;
+  full_name: string | null;
+  avatar_url: string | null;
+  preference_keys: string[];
+};
+
+export type TripInvitation = {
+  id: string;
+  trip_id: string;
+  created_by: string;
+  invite_token: string;
+  expires_at: string | null;
+  maximum_uses: number | null;
+  use_count: number;
+  is_active: boolean;
+  created_at: string;
+};
+
+export type UserProfile = {
+  id: string;
+  full_name: string | null;
+  avatar_url: string | null;
+  country: string | null;
+  phone_number: string | null;
+  gender: string | null;
+  preferred_language: string;
+  onboarding_completed: boolean;
+  created_at: string;
+  updated_at: string;
+};
+
+export type UserProfileUpdate = Partial<
+  Pick<
+    UserProfile,
+    | 'full_name'
+    | 'avatar_url'
+    | 'country'
+    | 'phone_number'
+    | 'gender'
+    | 'preferred_language'
+    | 'onboarding_completed'
+  >
+>;
+
 export type TravelGoal = {
   id: string;
   user_id: string;
+  goal_text: string;
+  created_at: string;
+};
+
+export type GroupGoal = {
+  id: string;
+  trip_id: string;
+  created_by: string;
   goal_text: string;
   created_at: string;
 };
@@ -118,7 +173,7 @@ export type TripItinerary = {
 };
 
 type RequestOptions = {
-  method?: 'GET' | 'POST' | 'PUT' | 'DELETE';
+  method?: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
   body?: object;
 };
 
@@ -192,6 +247,71 @@ export function getTrips(): Promise<TripSummary[]> {
   return authenticatedRequest('/api/v1/trips');
 }
 
+export function getMyProfile(): Promise<UserProfile> {
+  return authenticatedRequest('/api/v1/me');
+}
+
+export function updateMyProfile(update: UserProfileUpdate): Promise<UserProfile> {
+  return authenticatedRequest('/api/v1/me', {
+    method: 'PATCH',
+    body: update,
+  });
+}
+
+export async function getMyPreferences(): Promise<string[]> {
+  const response = await authenticatedRequest<{ preference_keys: string[] }>(
+    '/api/v1/me/preferences',
+  );
+  return response.preference_keys;
+}
+
+export async function replaceMyPreferences(preferenceKeys: string[]): Promise<string[]> {
+  const response = await authenticatedRequest<{ preference_keys: string[] }>(
+    '/api/v1/me/preferences',
+    {
+      method: 'PUT',
+      body: { preference_keys: preferenceKeys },
+    },
+  );
+  return response.preference_keys;
+}
+
+export function getTrip(tripId: string): Promise<TripSummary> {
+  return authenticatedRequest(`/api/v1/trips/${encodeURIComponent(tripId)}`);
+}
+
+export function getTripMembers(tripId: string): Promise<TripMember[]> {
+  return authenticatedRequest(
+    `/api/v1/trips/${encodeURIComponent(tripId)}/members`,
+  );
+}
+
+export function createTripInvitation(
+  tripId: string,
+  maximumUses = 10,
+): Promise<TripInvitation> {
+  const expiresAt = new Date();
+  expiresAt.setDate(expiresAt.getDate() + 7);
+
+  return authenticatedRequest(
+    `/api/v1/trips/${encodeURIComponent(tripId)}/invitations`,
+    {
+      method: 'POST',
+      body: {
+        expires_at: expiresAt.toISOString(),
+        maximum_uses: maximumUses,
+      },
+    },
+  );
+}
+
+export function acceptTripInvitation(inviteToken: string): Promise<TripSummary> {
+  return authenticatedRequest(
+    `/api/v1/invitations/${encodeURIComponent(inviteToken)}/accept`,
+    { method: 'POST' },
+  );
+}
+
 export function createTrip(name: string): Promise<TripSummary> {
   return authenticatedRequest('/api/v1/trips', {
     method: 'POST',
@@ -219,6 +339,24 @@ export function createTravelGoal(goalText: string): Promise<TravelGoal> {
 export function deleteTravelGoal(goalId: string): Promise<void> {
   return authenticatedRequest(
     `/api/v1/me/goals/${encodeURIComponent(goalId)}`,
+    { method: 'DELETE' },
+  );
+}
+
+export function getGroupGoals(tripId: string): Promise<GroupGoal[]> {
+  return authenticatedRequest(`/api/v1/trips/${encodeURIComponent(tripId)}/goals`);
+}
+
+export function createGroupGoal(tripId: string, goalText: string): Promise<GroupGoal> {
+  return authenticatedRequest(`/api/v1/trips/${encodeURIComponent(tripId)}/goals`, {
+    method: 'POST',
+    body: { goal_text: goalText },
+  });
+}
+
+export function deleteGroupGoal(tripId: string, goalId: string): Promise<void> {
+  return authenticatedRequest(
+    `/api/v1/trips/${encodeURIComponent(tripId)}/goals/${encodeURIComponent(goalId)}`,
     { method: 'DELETE' },
   );
 }
