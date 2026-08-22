@@ -1,7 +1,9 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
+import { Ionicons } from '@expo/vector-icons';
 import {
   ActivityIndicator,
   Modal,
+  Platform,
   Share,
   StyleSheet,
   Text,
@@ -9,7 +11,7 @@ import {
   View,
 } from 'react-native';
 import { AutumnColors } from '@/constants/colors';
-import { createTripInvitation } from '@/lib/api';
+import { createTripInvitation, getTripInvitationShareUrl } from '@/lib/api';
 
 interface GroupInviteSheetProps {
   visible: boolean;
@@ -34,14 +36,7 @@ export function GroupInviteSheet({
   const [isLoading, setIsLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
-  useEffect(() => {
-    if (!visible) {
-      setInviteLink(null);
-      setErrorMessage(null);
-    }
-  }, [visible]);
-
-  const ensureInviteLink = async () => {
+  const ensureInviteLink = useCallback(async () => {
     if (inviteLink) return inviteLink;
     if (!canInvite) {
       throw new Error('Only the group owner or an admin can invite members.');
@@ -51,19 +46,35 @@ export function GroupInviteSheet({
     setErrorMessage(null);
     try {
       const invitation = await createTripInvitation(groupId);
-      const generatedLink = `frontend://invite/${invitation.invite_token}`;
+      const generatedLink = getTripInvitationShareUrl(invitation.invite_token);
       setInviteLink(generatedLink);
       return generatedLink;
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [canInvite, groupId, inviteLink]);
+
+  useEffect(() => {
+    if (!visible) {
+      setInviteLink(null);
+      setErrorMessage(null);
+      return;
+    }
+
+    if (canInvite) {
+      void ensureInviteLink().catch((error) => {
+        setErrorMessage(error instanceof Error ? error.message : 'Unable to create invitation.');
+      });
+    }
+  }, [canInvite, ensureInviteLink, visible]);
 
   const handleShare = async () => {
     try {
       const link = await ensureInviteLink();
       await Share.share({
+        title: `Join ${groupName} on Pinara`,
         message: `Join my travel group "${groupName}"!\n\n${link}`,
+        ...(Platform.OS === 'ios' ? { url: link } : {}),
       });
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : 'Unable to create invitation.');
@@ -93,13 +104,12 @@ export function GroupInviteSheet({
             style={styles.shareButton}
             disabled={isLoading || !canInvite}
           >
-            {/* TODO: Replace with final Figma Share SVG */}
-            <View style={styles.shareIconPlaceholder} />
+            <Ionicons color="#FFFFFF" name="share-social-outline" size={18} />
             {isLoading ? (
               <ActivityIndicator color="#FFFFFF" />
             ) : (
               <Text style={styles.shareText}>
-                {canInvite ? 'Create & Share' : 'Invite unavailable'}
+                {canInvite ? 'Share Invitation' : 'Invite unavailable'}
               </Text>
             )}
           </TouchableOpacity>
@@ -107,9 +117,14 @@ export function GroupInviteSheet({
           <Text style={styles.orText}>or</Text>
 
           <View style={styles.linkContainer}>
-            <Text style={styles.linkText} selectable>
-              {inviteLink ?? 'A secure invitation link will appear here.'}
-            </Text>
+            {inviteLink ? (
+              <Text style={styles.linkText} selectable>{inviteLink}</Text>
+            ) : (
+              <View style={styles.linkLoadingRow}>
+                <ActivityIndicator color={AutumnColors.primary} size="small" />
+                <Text style={styles.linkLoadingText}>Creating secure link…</Text>
+              </View>
+            )}
           </View>
 
           {errorMessage ? <Text style={styles.errorText}>{errorMessage}</Text> : null}
@@ -168,12 +183,6 @@ const styles = StyleSheet.create({
     borderRadius: 24,
     gap: 8,
   },
-  shareIconPlaceholder: {
-    width: 16,
-    height: 16,
-    borderRadius: 4,
-    backgroundColor: 'rgba(255,255,255,0.5)',
-  },
   shareText: {
     fontSize: 15,
     fontWeight: '600',
@@ -201,6 +210,16 @@ const styles = StyleSheet.create({
     fontWeight: '400',
     color: AutumnColors.primary,
     textDecorationLine: 'underline',
+  },
+  linkLoadingRow: {
+    minHeight: 20,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  linkLoadingText: {
+    color: AutumnColors.body,
+    fontSize: 13,
   },
   closeButton: {
     paddingVertical: 8,

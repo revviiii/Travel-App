@@ -152,10 +152,10 @@ Only **one terminal** remains running in Method 1: the Expo/Metro terminal.
 4. Tap the Expo Go banner and allow it to open the project.
 5. If iOS asks for Local Network or Location permission, allow it.
 
-Email/password is the most reliable Expo Go authentication test. Google OAuth
-and final native branding should also be verified with a native preview build,
-because Expo Go is a container app and does not exactly reproduce every custom
-scheme, icon, splash screen, or native key.
+Use email/password in Expo Go. Expo Go cannot return securely to Pinara from a
+Google OAuth flow because it does not own Pinara's custom `frontend://` scheme.
+Test Google login in the installed Pinara preview build instead. Final native
+branding, custom schemes, and Android Maps keys also require that preview build.
 
 ## Test an already-built Android APK instead
 
@@ -525,6 +525,24 @@ Open the hosted health URL and give the free instance about a minute to wake.
 
 Add that exact Gmail address in Google Cloud Console under the OAuth consent
 screen's test users. Wait several minutes and try again.
+
+If Google finishes but Safari/Chrome opens `localhost`, the Supabase redirect
+was not allow-listed and Supabase fell back to its Site URL. In the hosted
+Supabase project, open **Authentication > URL Configuration** and set:
+
+```text
+Site URL: frontend://auth/callback
+Redirect URL: frontend://auth/callback
+Redirect URL: frontend://**
+```
+
+In Google Cloud, keep the authorized redirect URI set to Supabase's callback:
+
+```text
+https://<SUPABASE-PROJECT-REF>.supabase.co/auth/v1/callback
+```
+
+Restart and test from the installed Pinara preview app—not Expo Go.
 
 ## Google Places or Routes fails locally
 

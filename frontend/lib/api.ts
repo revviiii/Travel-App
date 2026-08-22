@@ -200,6 +200,27 @@ type RequestOptions = {
   body?: object;
 };
 
+function formatApiErrorDetail(detail: unknown, status: number): string {
+  if (typeof detail === 'string' && detail.trim()) return detail;
+
+  if (Array.isArray(detail)) {
+    const messages = detail
+      .map((item) => {
+        if (typeof item === 'string') return item;
+        if (item && typeof item === 'object' && 'msg' in item) return String(item.msg);
+        return null;
+      })
+      .filter((message): message is string => Boolean(message));
+    if (messages.length > 0) return messages.join('\n');
+  }
+
+  if (detail && typeof detail === 'object' && 'message' in detail) {
+    return String(detail.message);
+  }
+
+  return `Request failed with status ${status}`;
+}
+
 async function authenticatedRequest<T>(
   path: string,
   { method = 'GET', body }: RequestOptions = {},
@@ -225,8 +246,7 @@ async function authenticatedRequest<T>(
 
   if (!response.ok) {
     const payload = await response.json().catch(() => null);
-    const detail = payload?.detail ?? `Request failed with status ${response.status}`;
-    throw new Error(detail);
+    throw new Error(formatApiErrorDetail(payload?.detail, response.status));
   }
 
   if (response.status === 204) {
@@ -260,6 +280,10 @@ export function searchPlacesByText(query: string): Promise<{ places: PlaceMarker
       max_result_count: 5,
     },
   });
+}
+
+export function getTripInvitationShareUrl(inviteToken: string): string {
+  return `${apiUrl.replace(/\/$/, '')}/api/v1/invitations/${encodeURIComponent(inviteToken)}/open`;
 }
 
 export function getPlacePhotoUrl(photoName: string, maxWidthPx = 480): string {

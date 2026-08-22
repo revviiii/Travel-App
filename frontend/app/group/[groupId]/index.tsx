@@ -10,6 +10,8 @@ import {
 } from 'react-native';
 import { useRouter, useLocalSearchParams, RelativePathString } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import * as Location from 'expo-location';
+import MapView, { Marker } from 'react-native-maps';
 import { AutumnColors } from '@/constants/colors';
 import { GroupMemberCard } from '@/components/group/GroupMemberCard';
 import { GroupJumpBackCard } from '@/components/group/GroupJumpBackCard';
@@ -19,11 +21,17 @@ import {
   getTripMembers,
   getTripPlaces,
   getPlacePhotoUrl,
+  searchPlacesByText,
   type SavedTripPlace,
   type TripMember,
   type TripSummary,
 } from '@/lib/api';
 import { supabase } from '@/lib/supabase';
+
+const DEFAULT_MAP_CENTER = {
+  latitude: 14.5995,
+  longitude: 120.9842,
+};
 
 function formatPreference(value: string): string {
   return value
@@ -43,6 +51,9 @@ export default function GroupDetailsScreen() {
   const [isLoading, setIsLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [photoAccessToken, setPhotoAccessToken] = useState<string | null>(null);
+  const [mapCenter, setMapCenter] = useState(DEFAULT_MAP_CENTER);
+  const [mapLabel, setMapLabel] = useState('Manila');
+  const [showsUserLocation, setShowsUserLocation] = useState(false);
 
   const loadGroup = useCallback(async () => {
     if (!groupId) return;
@@ -70,6 +81,46 @@ export default function GroupDetailsScreen() {
       setPhotoAccessToken(data.session?.access_token ?? null);
     });
   }, [loadGroup]);
+
+  useEffect(() => {
+    let isCurrent = true;
+
+    async function resolveMapCenter() {
+      if (group?.destination_name) {
+        const result = await searchPlacesByText(group.destination_name);
+        const destination = result.places[0];
+        if (isCurrent && destination) {
+          setMapCenter(destination.location);
+          setMapLabel(destination.name);
+        }
+        return;
+      }
+
+      const permission = await Location.getForegroundPermissionsAsync();
+      if (!permission.granted) return;
+      if (isCurrent) setShowsUserLocation(true);
+
+      const position = await Location.getLastKnownPositionAsync({
+        maxAge: 5 * 60 * 1000,
+        requiredAccuracy: 2000,
+      }) ?? await Location.getCurrentPositionAsync({
+        accuracy: Location.Accuracy.Balanced,
+      });
+      if (!isCurrent) return;
+
+      const center = {
+        latitude: position.coords.latitude,
+        longitude: position.coords.longitude,
+      };
+      setMapCenter(center);
+      setMapLabel('Your current location');
+    }
+
+    void resolveMapCenter().catch(() => undefined);
+    return () => {
+      isCurrent = false;
+    };
+  }, [group?.destination_name]);
 
   const groupName = group?.name ?? 'Travel group';
   const hasJumpBackData = savedPlaces.length > 0;
@@ -162,10 +213,23 @@ export default function GroupDetailsScreen() {
         ) : !isLoading && !errorMessage ? (
           <>
             <Text style={styles.sectionTitle}>Start Your Journey</Text>
-            {/* Map placeholder for empty group state */}
-            {/* TODO: Replace with real map component when maps/API integration is implemented */}
             <View style={styles.mapPlaceholder}>
-              <Text style={styles.mapPlaceholderText}>MAP PLACEHOLDER</Text>
+              <MapView
+                region={{
+                  ...mapCenter,
+                  latitudeDelta: 0.12,
+                  longitudeDelta: 0.12,
+                }}
+                showsMyLocationButton
+                showsUserLocation={showsUserLocation}
+                style={StyleSheet.absoluteFillObject}
+              >
+                <Marker coordinate={mapCenter} title={mapLabel} />
+              </MapView>
+              <View pointerEvents="none" style={styles.mapLocationBadge}>
+                <Ionicons color={AutumnColors.primary} name="location" size={14} />
+                <Text numberOfLines={1} style={styles.mapLocationText}>{mapLabel}</Text>
+              </View>
               <TouchableOpacity
                 activeOpacity={0.85}
                 onPress={handleCreateNewPlace}
@@ -325,20 +389,33 @@ const styles = StyleSheet.create({
     paddingBottom: 16,
   },
 
-  /* Map placeholder for empty state */
+  /* Empty-group map */
   mapPlaceholder: {
     width: '100%',
     height: 140,
     borderRadius: 12,
     backgroundColor: '#EDE9E0',
-    justifyContent: 'center',
-    alignItems: 'center',
+    overflow: 'hidden',
     marginBottom: 16,
   },
-  mapPlaceholderText: {
-    fontSize: 12,
+  mapLocationBadge: {
+    position: 'absolute',
+    left: 10,
+    top: 10,
+    maxWidth: '70%',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    borderRadius: 14,
+    backgroundColor: 'rgba(255, 249, 241, 0.94)',
+    paddingHorizontal: 9,
+    paddingVertical: 6,
+  },
+  mapLocationText: {
+    flexShrink: 1,
+    color: AutumnColors.heading,
+    fontSize: 11,
     fontWeight: '600',
-    color: AutumnColors.body,
   },
   addNewOverlay: {
     position: 'absolute',

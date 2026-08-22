@@ -401,6 +401,11 @@ export default function HomeScreen() {
             ? () => handleLongPressGroup(item)
             : undefined
         }
+        onMenuPress={
+          item.currentUserRole === 'owner' || item.currentUserRole === 'admin'
+            ? () => handleLongPressGroup(item)
+            : undefined
+        }
       />
     ),
     [handleLongPressGroup, router],

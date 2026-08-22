@@ -1,6 +1,7 @@
 import { makeRedirectUri } from 'expo-auth-session';
 import * as QueryParams from 'expo-auth-session/build/QueryParams';
 import * as WebBrowser from 'expo-web-browser';
+import Constants, { ExecutionEnvironment } from 'expo-constants';
 import type { Session } from '@supabase/supabase-js';
 import { supabase } from '@/lib/supabase';
 
@@ -11,6 +12,7 @@ WebBrowser.maybeCompleteAuthSession();
 export const socialAuthRedirectUrl = makeRedirectUri({
   scheme: 'frontend',
   path: 'auth/callback',
+  native: 'frontend://auth/callback',
 });
 
 export async function createSessionFromUrl(url: string): Promise<Session> {
@@ -56,6 +58,13 @@ export async function createSessionFromUrl(url: string): Promise<Session> {
 export async function signInWithSocialProvider(
   provider: SocialAuthProvider,
 ): Promise<void> {
+  if (Constants.executionEnvironment === ExecutionEnvironment.StoreClient) {
+    throw new Error(
+      'Google sign-in cannot return to Pinara inside Expo Go. Install the Pinara preview build '
+      + 'or use email and password for this test.',
+    );
+  }
+
   const { data, error } = await supabase.auth.signInWithOAuth({
     provider,
     options: {

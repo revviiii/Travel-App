@@ -13,7 +13,10 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { AutumnColors } from '@/constants/colors';
-import { PROFILE_TRAVEL_PREFERENCES } from '@/constants/preferences';
+import {
+  normalizePreferenceIds,
+  PROFILE_TRAVEL_PREFERENCES,
+} from '@/constants/preferences';
 import { PreferenceChip } from '@/components/onboarding/PreferenceChip';
 import { usePreferences } from '@/contexts/PreferenceContext';
 import { getMyPreferences, replaceMyPreferences } from '@/lib/api';
@@ -34,8 +37,9 @@ export default function TravelPreferencesScreen() {
     getMyPreferences()
       .then((preferences) => {
         if (!isCurrent) return;
-        setDraftPreferences(new Set(preferences.slice(0, maxPreferences)));
-        setPreferences(preferences);
+        const normalized = normalizePreferenceIds(preferences).slice(0, maxPreferences);
+        setDraftPreferences(new Set(normalized));
+        setPreferences(normalized);
       })
       .catch((error) => {
         if (isCurrent) {
@@ -77,8 +81,9 @@ export default function TravelPreferencesScreen() {
     setIsSaving(true);
     try {
       const saved = await replaceMyPreferences([...draftPreferences]);
-      setPreferences(saved);
-      setDraftPreferences(new Set(saved));
+      const normalized = normalizePreferenceIds(saved);
+      setPreferences(normalized);
+      setDraftPreferences(new Set(normalized));
       Alert.alert('Preferences saved', 'Your travel preferences have been updated.');
     } catch (error) {
       Alert.alert(

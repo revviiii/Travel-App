@@ -1,4 +1,5 @@
 import { createContext, useContext, useState, useCallback, type ReactNode } from 'react';
+import { normalizePreferenceIds } from '@/constants/preferences';
 
 /**
  * Temporary in-memory preference state for the current session.
@@ -35,14 +36,16 @@ export function PreferenceProvider({ children }: { children: ReactNode }) {
   const [selectedPreferences, setSelectedPreferences] = useState<Set<string>>(new Set());
 
   const togglePreference = useCallback((id: string) => {
+    const [normalizedId] = normalizePreferenceIds([id]);
+    if (!normalizedId) return;
     setSelectedPreferences((prev) => {
       const next = new Set(prev);
-      if (next.has(id)) {
+      if (next.has(normalizedId)) {
         // Always allow deselection
-        next.delete(id);
+        next.delete(normalizedId);
       } else if (next.size < MAX_PREFERENCES) {
         // Only allow selection if under the maximum
-        next.add(id);
+        next.add(normalizedId);
       }
       // If at max and trying to add, do nothing (no-op)
       return next;
@@ -50,7 +53,7 @@ export function PreferenceProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const setPreferences = useCallback((ids: Iterable<string>) => {
-    setSelectedPreferences(new Set(Array.from(ids).slice(0, MAX_PREFERENCES)));
+    setSelectedPreferences(new Set(normalizePreferenceIds(ids).slice(0, MAX_PREFERENCES)));
   }, []);
 
   const isMaxReached = selectedPreferences.size >= MAX_PREFERENCES;

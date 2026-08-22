@@ -24,7 +24,7 @@ import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import MapView, { Marker, Polyline } from 'react-native-maps';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { AutumnColors } from '@/constants/colors';
-import { PREFERENCE_CATEGORIES } from '@/constants/preferences';
+import { normalizePreferenceIds, PREFERENCE_CATEGORIES } from '@/constants/preferences';
 import { usePreferences } from '@/contexts/PreferenceContext';
 import { PlannerTab } from '@/components/home/PlannerTab';
 import { EmptyState } from '@/components/home/EmptyState';
@@ -168,7 +168,7 @@ export default function DiscoveryScreen() {
 
       void getMyPreferences()
         .then((preferences) => {
-          if (isCurrent) setPreferences(preferences);
+          if (isCurrent) setPreferences(normalizePreferenceIds(preferences));
         })
         .catch(() => undefined);
 
@@ -207,9 +207,9 @@ export default function DiscoveryScreen() {
       setRouteSummary(null);
 
       try {
-        const preferenceKeys = filterQuery
-          .split(',')
-          .filter(Boolean) as PreferenceKey[];
+        const preferenceKeys = normalizePreferenceIds(
+          filterQuery.split(',').filter(Boolean),
+        ) as PreferenceKey[];
         let center = MANILA_CENTER;
         const destinationResult = await searchPlacesByText(committedDestination);
         const destinationPlace = destinationResult.places[0];

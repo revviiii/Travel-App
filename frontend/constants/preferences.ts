@@ -26,35 +26,65 @@ export const PREFERENCE_CATEGORIES: PreferenceCategory[] = [
   { id: 'spa', label: 'SPA' },
 ];
 
-export const PROFILE_TRAVEL_PREFERENCES: PreferenceCategory[] = [
-  { id: 'adventure', label: 'Adventure Travel' },
-  { id: 'city-breaks', label: 'City Breaks' },
-  { id: 'cultural-exploration', label: 'Cultural Exploration' },
-  { id: 'wine', label: 'Wine Tours' },
-  { id: 'beach-vacations', label: 'Beach Vacations' },
-  { id: 'nature-escapes', label: 'Nature Escapes' },
-  { id: 'road-trips', label: 'Road Trips' },
-  { id: 'food-tourism', label: 'Food Tourism' },
-  { id: 'historical-sites', label: 'Historical Sites' },
-  { id: 'music-festivals', label: 'Music Festivals' },
-  { id: 'art-gallery', label: 'Art Gallery' },
-  { id: 'culinary-tours', label: 'Culinary Tours' },
-  { id: 'group-tours', label: 'Group Tours' },
-  { id: 'skiing-snowboarding', label: 'Skiing/Snowboarding' },
-  { id: 'retreats-profile', label: 'Retreats' },
-  { id: 'water-activity', label: 'Water Activity' },
-  { id: 'bus-hop-on-hop', label: 'Bus Hop On Hop' },
-  { id: 'cruise-vacations', label: 'Cruise Vacations' },
-  { id: 'solo-travel', label: 'Solo Travel' },
-  { id: 'eco-tourism', label: 'Eco-Tourism' },
-  { id: 'spa-getaways', label: 'Spa Getaways' },
-  { id: 'desert-adventures', label: 'Desert Adventures' },
-  { id: 'fishing-tour', label: 'Fishing Tour' },
-];
+/** Profile editing and onboarding intentionally present the same choices. */
+export const PROFILE_TRAVEL_PREFERENCES: PreferenceCategory[] = PREFERENCE_CATEGORIES;
+
+/**
+ * Older app builds stored a second set of profile-only IDs. Convert them to the
+ * canonical IDs accepted by the Google Places API before displaying or using them.
+ */
+export const LEGACY_PREFERENCE_ID_MAP: Record<string, string> = {
+  adventure: 'outdoors',
+  'city-breaks': 'city',
+  'cultural-exploration': 'culture',
+  wine: 'food',
+  'beach-vacations': 'beaches',
+  'nature-escapes': 'nature',
+  'road-trips': 'roadtrips',
+  'food-tourism': 'food',
+  'historical-sites': 'culture',
+  'music-festivals': 'culture',
+  'art-gallery': 'culture',
+  'culinary-tours': 'food',
+  'group-tours': 'city',
+  'skiing-snowboarding': 'skiing',
+  'retreats-profile': 'retreats',
+  'water-activity': 'beaches',
+  'bus-hop-on-hop': 'city',
+  'cruise-vacations': 'beaches',
+  'solo-travel': 'city',
+  'eco-tourism': 'nature',
+  'spa-getaways': 'spa',
+  'desert-adventures': 'outdoors',
+  'fishing-tour': 'outdoors',
+};
+
+const CANONICAL_PREFERENCE_IDS = new Set(PREFERENCE_CATEGORIES.map((item) => item.id));
+
+export function normalizePreferenceIds(values: Iterable<string>): string[] {
+  const normalized: string[] = [];
+  const seen = new Set<string>();
+
+  for (const value of values) {
+    const canonical = LEGACY_PREFERENCE_ID_MAP[value] ?? value;
+    if (CANONICAL_PREFERENCE_IDS.has(canonical) && !seen.has(canonical)) {
+      normalized.push(canonical);
+      seen.add(canonical);
+    }
+  }
+
+  return normalized;
+}
 
 /**
  * Lookup map for quick ID → label resolution.
  */
 export const PREFERENCE_LABEL_MAP: Record<string, string> = Object.fromEntries(
-  [...PREFERENCE_CATEGORIES, ...PROFILE_TRAVEL_PREFERENCES].map((cat) => [cat.id, cat.label]),
+  [
+    ...PREFERENCE_CATEGORIES.map((category) => [category.id, category.label]),
+    ...Object.entries(LEGACY_PREFERENCE_ID_MAP).map(([legacyId, canonicalId]) => [
+      legacyId,
+      PREFERENCE_CATEGORIES.find((category) => category.id === canonicalId)?.label ?? legacyId,
+    ]),
+  ],
 );

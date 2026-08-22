@@ -233,6 +233,24 @@ def test_create_and_accept_trip_invitation() -> None:
     assert accept_response.json()["id"] == str(TRIP_ID)
 
 
+def test_invitation_share_url_opens_registered_app_scheme() -> None:
+    response = TestClient(app).get(
+        f"/api/v1/invitations/{INVITE_TOKEN}/open",
+        follow_redirects=False,
+    )
+
+    assert response.status_code == 200
+    assert response.headers["content-type"].startswith("text/html")
+    assert response.headers["cache-control"] == "no-store"
+    assert f"frontend://invite/{INVITE_TOKEN}" in response.text
+
+
+def test_invitation_share_url_rejects_unsafe_token() -> None:
+    response = TestClient(app).get("/api/v1/invitations/not%20safe/open")
+
+    assert response.status_code == 400
+
+
 def test_invalid_invitation_is_rejected_safely() -> None:
     fake_supabase = FakeSupabaseClient()
 
