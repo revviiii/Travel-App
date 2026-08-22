@@ -1,0 +1,30 @@
+services:
+  - type: web
+    name: travel-app-api
+    runtime: docker
+    plan: free
+    region: singapore
+    dockerfilePath: ./apps/api/Dockerfile
+    dockerContext: ./apps/api
+    healthCheckPath: /api/v1/health
+    envVars:
+      - key: PORT
+        value: 8000
+      - key: APP_ENV
+        value: production
+      - key: APP_NAME
+        value: Travel App API
+      - key: API_V1_PREFIX
+        value: /api/v1
+      - key: GOOGLE_PLACES_REQUESTS_PER_MINUTE
+        value: 12
+      - key: GOOGLE_ROUTES_REQUESTS_PER_MINUTE
+        value: 20
+      - key: CORS_ORIGINS
+        value: http://localhost:8081
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_PUBLISHABLE_KEY
+        sync: false
+      - key: GOOGLE_MAPS_API_KEY
+        sync: false

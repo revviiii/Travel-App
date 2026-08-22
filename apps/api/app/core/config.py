@@ -4,7 +4,22 @@ from pathlib import Path
 from pydantic import Field, SecretStr
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
-REPOSITORY_ROOT = Path(__file__).resolve().parents[4]
+
+def find_repository_root(config_file: Path = Path(__file__)) -> Path:
+    """Find the checkout root without assuming a fixed container path depth."""
+    resolved_file = config_file.resolve()
+    for parent in resolved_file.parents:
+        if (parent / ".env.example").is_file() and (parent / "supabase").is_dir():
+            return parent
+
+    # The production image copies the API package to /app and receives all
+    # configuration through host environment variables, so no repository
+    # markers exist there. Falling back to the process directory keeps optional
+    # local .env loading safe without indexing beyond the available parents.
+    return Path.cwd()
+
+
+REPOSITORY_ROOT = find_repository_root()
 
 
 class Settings(BaseSettings):
