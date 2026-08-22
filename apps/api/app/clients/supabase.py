@@ -14,6 +14,9 @@ TRIP_FIELDS = (
     "start_date,end_date,budget,status,created_at,updated_at"
 )
 TRAVEL_GOAL_FIELDS = "id,user_id,goal_text,created_at"
+TRAVEL_TRACK_FIELDS = (
+    "id,user_id,name,started_at,ended_at,duration_seconds,distance_meters,path,created_at"
+)
 TRIP_PLACE_FIELDS = (
     "id,trip_id,place_id,suggested_by,scheduled_date,scheduled_time,duration_minutes,"
     "voting_enabled,leader_finalized_at,leader_finalized_by,created_at"
@@ -181,6 +184,33 @@ class SupabaseClient:
         )
         if not rows:
             raise SupabaseResourceNotFoundError("Travel goal was not found")
+
+    async def list_travel_tracks(self, user_id: UUID) -> list[Mapping[str, object]]:
+        return await self._request_rows(
+            "GET",
+            "/rest/v1/travel_tracks",
+            params={
+                "user_id": f"eq.{user_id}",
+                "select": TRAVEL_TRACK_FIELDS,
+                "order": "created_at.desc",
+            },
+        )
+
+    async def create_travel_track(
+        self,
+        user_id: UUID,
+        values: Mapping[str, object],
+    ) -> Mapping[str, object]:
+        rows = await self._request_rows(
+            "POST",
+            "/rest/v1/travel_tracks",
+            params={"select": TRAVEL_TRACK_FIELDS},
+            json={"user_id": str(user_id)} | dict(values),
+            headers={"Prefer": "return=representation"},
+        )
+        if not rows:
+            raise SupabaseApiError("Travel track was not created")
+        return rows[0]
 
     async def list_group_goals(self, trip_id: UUID) -> list[Mapping[str, object]]:
         return await self._request_rows(

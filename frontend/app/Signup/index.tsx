@@ -19,7 +19,6 @@ const lockIcon = require('@/assets/images/Lock_ic.svg');
 const seeIcon = require('@/assets/images/See_ic.svg');
 const unseeIcon = require('@/assets/images/Unsee_ic.svg');
 const googleIcon = require('@/assets/images/Google_ic.svg');
-const facebookIcon = require('@/assets/images/Facebook_ic.svg');
 const appleIcon = require('@/assets/images/Apple_ic.svg');
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -27,7 +26,7 @@ const MINIMUM_PASSWORD_LENGTH = 8;
 
 type FieldName = 'fullName' | 'email' | 'password';
 type FormErrors = Partial<Record<FieldName, string>>;
-type SocialProvider = 'Google' | 'Facebook' | 'Apple';
+type SocialProvider = 'Google' | 'Apple';
 
 export default function SignupScreen() {
   const router = useRouter();
@@ -307,15 +306,6 @@ export default function SignupScreen() {
             label="Sign up with Google"
             onPress={() =>
               void handleSocialSignup('Google')
-            }
-          />
-
-          <SocialButton
-            icon={facebookIcon}
-            iconBackground="#1877F2"
-            label="Sign up with Facebook"
-            onPress={() =>
-              void handleSocialSignup('Facebook')
             }
           />
 

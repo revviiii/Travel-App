@@ -13,7 +13,7 @@ services:
       - key: APP_ENV
         value: production
       - key: APP_NAME
-        value: Travel App API
+        value: Pinara API
       - key: API_V1_PREFIX
         value: /api/v1
       - key: GOOGLE_PLACES_REQUESTS_PER_MINUTE

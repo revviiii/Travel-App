@@ -10,7 +10,7 @@ Set these in the host's encrypted secret/environment settings:
 
 ```dotenv
 APP_ENV=production
-APP_NAME=Travel App API
+APP_NAME=Pinara API
 API_V1_PREFIX=/api/v1
 SUPABASE_URL=https://YOUR_PROJECT.supabase.co
 SUPABASE_PUBLISHABLE_KEY=YOUR_PUBLISHABLE_KEY

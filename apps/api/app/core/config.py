@@ -30,7 +30,7 @@ class Settings(BaseSettings):
     )
 
     app_env: str = "development"
-    app_name: str = "Travel App API"
+    app_name: str = "Pinara API"
     api_v1_prefix: str = "/api/v1"
 
     supabase_url: str | None = None

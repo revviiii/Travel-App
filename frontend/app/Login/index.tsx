@@ -15,7 +15,6 @@ import { getMyProfile } from '@/lib/api';
 import { signInWithSocialProvider, type SocialAuthProvider } from '@/lib/oauth';
 
 const googleIcon = require('@/assets/images/Google_ic.svg');
-const facebookIcon = require('@/assets/images/Facebook_ic.svg');
 const appleIcon = require('@/assets/images/Apple_ic.svg');
 const emailIcon = require('@/assets/images/Email_ic.svg');
 const lockIcon = require('@/assets/images/Lock_ic.svg');
@@ -24,7 +23,7 @@ const unseeIcon = require('@/assets/images/Unsee_ic.svg');
 
 const MINIMUM_PASSWORD_LENGTH = 8;
 
-type SocialProvider = 'Google' | 'Facebook' | 'Apple';
+type SocialProvider = 'Google' | 'Apple';
 
 export default function LoginScreen() {
   const passwordInputRef = useRef<TextInput>(null);
@@ -277,15 +276,6 @@ export default function LoginScreen() {
                 label="Continue With Google"
                 onPress={() =>
                   void handleSocialLogin('Google')
-                }
-              />
-
-              <SocialButton
-                icon={facebookIcon}
-                iconBackground="#1877F2"
-                label="Continue With Facebook"
-                onPress={() =>
-                  void handleSocialLogin('Facebook')
                 }
               />
 

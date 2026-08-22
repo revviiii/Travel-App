@@ -8,7 +8,8 @@ import { createContext, useContext, useState, useCallback, type ReactNode } from
  *
  * Maximum of 4 preferences may be selected at any time.
  *
- * TODO: Replace temporary preference state with persisted user profile preferences.
+ * The API-backed preference screens hydrate this context so recommendations
+ * react immediately after a saved preference change.
  * This context will eventually be hydrated from the authenticated user's backend profile
  * and synced back on changes.
  */

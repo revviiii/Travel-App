@@ -1,4 +1,4 @@
-# Frontend, backend, and database local testing guide
+# Pinara frontend, backend, and database testing guide
 
 This guide is for a teammate who only has the GitHub repository and has never
 installed or run this project's backend or database. It uses Windows, Kiro,
@@ -9,14 +9,47 @@ security policy, port, or environment variable needs to change, coordinate the
 change with Ramyl instead of creating a second backend implementation in the
 frontend.
 
+## Choose the right testing workflow
+
+Use **hosted preview testing** when a frontend teammate only needs to run and
+demo Pinara. It needs an Android emulator or Android phone, but it does not need
+Docker, Python, Supabase CLI, a local database, or three running terminals.
+
+Use **full local testing** only when changing FastAPI/database code, inspecting
+tables locally, or testing a new migration before deployment.
+
+## Fastest workflow: hosted preview APK
+
+1. Pull `main` using the commands in section 1.
+2. Ask Ramyl for the current Expo preview build link, or open the team's Pinara
+   project in Expo and select the latest successful **preview** Android build.
+3. Download and install the APK on an Android phone, or drag the APK onto a
+   running Android Emulator.
+4. Open Pinara. The preview already uses the hosted Render API, hosted Supabase
+   database/Auth, and the build-time Android Google Maps key.
+5. Create a personal test account. Never share one test password among the team.
+
+Expo team members can install the latest preview directly from a Kiro terminal
+after starting an emulator:
+
+```powershell
+cd frontend
+npx eas-cli@latest login
+npx eas-cli@latest build:run --platform android --latest
+```
+
+The hosted Render free service can take around one minute to wake after a period
+of inactivity. Retry once after the API health check wakes. No local `.env`
+file is required for an already-built preview APK.
+
 ## What will run locally
 
 Four processes must be available at the same time:
 
 1. Docker Desktop runs the local Supabase containers.
 2. Supabase provides PostgreSQL, Auth, Studio, Storage, and its Data API.
-3. FastAPI provides the Travel App business API and calls Google Maps services.
-4. Expo runs the React Native frontend in the Android Emulator.
+3. FastAPI provides the Pinara business API and calls Google Maps services.
+4. Expo runs the Pinara React Native frontend in the Android Emulator.
 
 The Android Emulator uses `10.0.2.2` to reach services running on the Windows
 computer. Do not change the frontend URLs to `127.0.0.1`; inside the emulator,
@@ -28,10 +61,12 @@ that address means the emulator itself.
 | --- | --- | --- |
 | Email signup and login | Supabase Auth | Connected |
 | Profiles | Supabase PostgreSQL through FastAPI | Connected and editable in the app |
+| Account photo | Google Auth metadata or the `avatars` Storage bucket | Connected; users can also choose or take a photo |
 | Group creation/list/deletion | `trips` and `trip_members` tables | Connected and persistent |
 | Travel goals | `travel_goals` table | Connected and persistent |
 | Group goals | `group_goals` table | Connected, persistent, and live for members |
 | Nearby recommendations | Google Places API through FastAPI | Connected when a valid Google key is configured |
+| Google Maps place details | Google Maps universal URLs | Opens the selected place in Google Maps |
 | Route line/distance/duration | Google Routes API through FastAPI | Connected when a valid Google key is configured |
 | Saved places and votes | Supabase tables through FastAPI | Connected and persistent |
 | Preference screen | `user_preferences` through FastAPI | Connected and persistent |
@@ -39,6 +74,7 @@ that address means the emulator itself.
 | Shared itinerary | Member-selected dates/times, voting, and leader finalization through FastAPI | Connected and persistent |
 | Calendar sync | Device calendar through Expo Calendar | Confirmed/orange places only |
 | Live collaboration | Supabase Realtime with RLS | Votes and saved-place changes refresh for group members |
+| My Tracks | Foreground Expo Location tracking and `travel_tracks` | Records, highlights, saves, and reloads traveled paths |
 | Maps cost control | FastAPI per-user throttling and Google Cloud quotas | Connected; `429` prevents request bursts |
 
 ## 1. Pull the newest code first
@@ -220,7 +256,7 @@ Open `.env` in Kiro and set the keys printed by `npx supabase status`:
 
 ```dotenv
 APP_ENV=development
-APP_NAME=Travel App API
+APP_NAME=Pinara API
 API_V1_PREFIX=/api/v1
 
 SUPABASE_URL=http://127.0.0.1:54421
@@ -305,8 +341,8 @@ npm ci
 npx expo start --clear --android
 ```
 
-Keep this terminal open. Expo should install/open Expo Go and load the Travel
-App. For later starts, `npm run android` is enough unless Metro's cache is
+Keep this terminal open. Expo should install/open Expo Go and load Pinara. For
+later starts, `npm run android` is enough unless Metro's cache is
 causing a problem.
 
 ## 7. Verify the backend before testing the app
@@ -345,7 +381,10 @@ reset.
 5. Choose or skip preferences and continue to Home.
 
 Local email confirmation is disabled, so the session should be created
-immediately. Social login buttons are still placeholders; use email/password.
+immediately. Google login is intended for the hosted Supabase preview; local
+development should use email/password unless that machine's local Supabase
+OAuth provider and redirect URLs were configured separately. Facebook login is
+not offered. Apple login must not be used until the team configures its provider.
 
 To confirm the account exists, open Supabase Studio and select
 **Authentication > Users**. Passwords cannot be viewed in Supabase. If a
@@ -396,6 +435,10 @@ output, and FastAPI terminal error for any failure.
 - Tap the Home map/search area to open Discovery.
 - Verify a real map, recommendation markers, and live place cards appear.
 - Change the Discovery filters and verify the request refreshes.
+- Change the saved Travel Preferences from the profile screen, return to
+  Discovery, and verify the recommendation categories refresh automatically.
+- Tap the external-link icon on a place card and verify Google Maps opens the
+  same place for additional details.
 - Verify a route polyline and distance/duration badge appear when Google returns
   at least one destination.
 - If the app says the Google key is missing or rejected, stop here and send the
@@ -438,9 +481,31 @@ output, and FastAPI terminal error for any failure.
 ### Profile and preferences
 
 - Open the profile screen and verify the authenticated name/email appear.
+- For a Google account, verify its Google profile picture appears on Home and
+  the Profile screen.
+- Tap the camera icon, choose or take a photo, and verify it replaces the avatar
+  on Profile and Home. In Studio, verify the file is under
+  **Storage > avatars > the user's ID**.
 - Edit Personal Info, restart the app, and verify the values persist.
 - Change Travel Preferences, restart the app, and verify the selection persists.
+- Return to Discovery and verify the recommendations use the new preferences.
 - In Studio, verify `profiles` and `user_preferences` contain the same values.
+
+### My Tracks
+
+- On Home, tap the footsteps icon to open **My Tracks**.
+- Tap **Start tracking** and allow location access while using Pinara.
+- Walk with a phone, or change the emulator location at least twice, and verify
+  the traveled path is highlighted in orange.
+- Tap **Finish tracking**, give the journey a name, and choose **Save track**.
+- Reopen **My Tracks**, select the saved journey, and verify its route, distance,
+  and duration reload.
+- In Studio, verify the row and JSON path in `travel_tracks`.
+
+Tracking currently runs only while the My Tracks screen and Pinara are in use.
+Do not promise background tracking for the demo. Background recording needs an
+additional Android foreground service, background permission, privacy wording,
+and store-policy review.
 
 ## 10. How the frontend is expected to call the backend
 

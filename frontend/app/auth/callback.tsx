@@ -32,7 +32,7 @@ export default function AuthCallbackScreen() {
         setErrorMessage(
           error instanceof Error
             ? error.message
-            : 'Travel App could not finish signing you in.',
+            : 'Pinara could not finish signing you in.',
         );
       }
     }
@@ -43,7 +43,7 @@ export default function AuthCallbackScreen() {
   return (
     <View style={styles.screen}>
       <StatusBar style="dark" />
-      <Text style={styles.brand}>Travel App</Text>
+      <Text style={styles.brand}>Pinara</Text>
 
       {errorMessage ? (
         <>
@@ -54,14 +54,14 @@ export default function AuthCallbackScreen() {
             onPress={() => router.replace('/Login')}
             style={styles.button}
           >
-            <Text style={styles.buttonText}>Return to Travel App login</Text>
+            <Text style={styles.buttonText}>Return to Pinara login</Text>
           </TouchableOpacity>
         </>
       ) : (
         <>
           <ActivityIndicator color="#D43A11" size="large" />
           <Text style={styles.title}>Finishing your Google sign-in</Text>
-          <Text style={styles.message}>You will continue to Travel App.</Text>
+          <Text style={styles.message}>You will continue to Pinara.</Text>
         </>
       )}
     </View>

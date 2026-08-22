@@ -235,3 +235,33 @@ itinerary provider.
 The frontend may export only proposals whose `is_confirmed` value is true.
 Calendar export happens locally through the device's selected writable
 calendar; Supabase and FastAPI never receive calendar credentials.
+
+## Travel tracks
+
+### `GET /api/v1/me/tracks`
+
+Returns the authenticated user's saved traveled paths, newest first. Row-level
+security prevents users from reading another account's tracks.
+
+### `POST /api/v1/me/tracks`
+
+Saves a completed foreground-tracking session. A path must contain between two
+and 20,000 latitude/longitude points. The API derives `user_id` from the access
+token and does not accept it from the client.
+
+```json
+{
+  "name": "Manila museum walk",
+  "started_at": "2026-08-23T01:00:00Z",
+  "ended_at": "2026-08-23T01:35:00Z",
+  "duration_seconds": 2100,
+  "distance_meters": 2840.5,
+  "path": [
+    { "latitude": 14.5995, "longitude": 120.9842, "recorded_at": "2026-08-23T01:00:00Z" },
+    { "latitude": 14.6001, "longitude": 120.9850, "recorded_at": "2026-08-23T01:00:05Z" }
+  ]
+}
+```
+
+The current implementation records only while Pinara is in use. It does not
+request background location access.

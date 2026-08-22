@@ -1,4 +1,4 @@
-# Travel App
+# Pinara
 
 A collaborative mobile travel planner for discovering places, voting with a
 group, building itineraries, navigating between stops, and reviewing completed

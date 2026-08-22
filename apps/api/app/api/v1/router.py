@@ -8,6 +8,7 @@ from app.api.v1.endpoints import (
     itineraries,
     maps,
     me,
+    tracks,
     trip_places,
     trips,
 )
@@ -22,3 +23,4 @@ api_router.include_router(goals.router)
 api_router.include_router(group_goals.router)
 api_router.include_router(trip_places.router)
 api_router.include_router(itineraries.router)
+api_router.include_router(tracks.router)

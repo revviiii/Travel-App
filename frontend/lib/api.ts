@@ -113,6 +113,26 @@ export type TravelGoal = {
   created_at: string;
 };
 
+export type TrackPoint = {
+  latitude: number;
+  longitude: number;
+  recorded_at: string;
+};
+
+export type TravelTrack = {
+  id: string;
+  user_id: string;
+  name: string;
+  started_at: string;
+  ended_at: string;
+  duration_seconds: number;
+  distance_meters: number;
+  path: TrackPoint[];
+  created_at: string;
+};
+
+export type TravelTrackCreate = Omit<TravelTrack, 'id' | 'user_id' | 'created_at'>;
+
 export type GroupGoal = {
   id: string;
   trip_id: string;
@@ -275,6 +295,17 @@ export function updateMyProfile(update: UserProfileUpdate): Promise<UserProfile>
   return authenticatedRequest('/api/v1/me', {
     method: 'PATCH',
     body: update,
+  });
+}
+
+export function getTravelTracks(): Promise<TravelTrack[]> {
+  return authenticatedRequest('/api/v1/me/tracks');
+}
+
+export function createTravelTrack(track: TravelTrackCreate): Promise<TravelTrack> {
+  return authenticatedRequest('/api/v1/me/tracks', {
+    method: 'POST',
+    body: track,
   });
 }
 

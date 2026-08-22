@@ -11,6 +11,7 @@ interface PlaceCardProps {
   status: string;
   actionLabel?: string;
   onActionPress?: () => void;
+  onDetailsPress?: () => void;
   /** Optional callback for the circular Add-to-Itinerary action */
   onAddToItinerary?: () => void;
   photoUri?: string;
@@ -30,6 +31,7 @@ export function PlaceCard({
   status,
   actionLabel = 'View details',
   onActionPress,
+  onDetailsPress,
   onAddToItinerary,
   photoUri,
   photoHeaders,
@@ -73,15 +75,26 @@ export function PlaceCard({
         </View>
       </View>
 
-      <TouchableOpacity
-        disabled={!action}
-        onPress={action}
-        style={styles.linkButton}
-        accessibilityRole="button"
-        accessibilityLabel={resolvedActionLabel}
-      >
-        <Ionicons color={AutumnColors.primary} name="add" size={20} />
-      </TouchableOpacity>
+      <View style={styles.actionButtons}>
+        <TouchableOpacity
+          disabled={!onDetailsPress}
+          onPress={onDetailsPress}
+          style={styles.linkButton}
+          accessibilityRole="link"
+          accessibilityLabel={`Open ${name} in Google Maps`}
+        >
+          <Ionicons color={AutumnColors.primary} name="open-outline" size={18} />
+        </TouchableOpacity>
+        <TouchableOpacity
+          disabled={!action}
+          onPress={action}
+          style={styles.linkButton}
+          accessibilityRole="button"
+          accessibilityLabel={resolvedActionLabel}
+        >
+          <Ionicons color={AutumnColors.primary} name="add" size={20} />
+        </TouchableOpacity>
+      </View>
     </View>
   );
 }
@@ -174,5 +187,8 @@ const styles = StyleSheet.create({
     borderColor: AutumnColors.chipBorder,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  actionButtons: {
+    gap: 7,
   },
 });

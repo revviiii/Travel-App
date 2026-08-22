@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -12,7 +12,7 @@ import {
 } from 'react-native';
 import { Image } from 'expo-image';
 import { Ionicons } from '@expo/vector-icons';
-import { useRouter, type RelativePathString } from 'expo-router';
+import { useFocusEffect, useRouter, type RelativePathString } from 'expo-router';
 import MapView, { Marker } from 'react-native-maps';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { AutumnColors } from '@/constants/colors';
@@ -33,6 +33,7 @@ import {
   TravelGoal,
   TripSummary,
 } from '@/lib/api';
+import { supabase } from '@/lib/supabase';
 
 const settingsIcon = require('@/assets/images/settings_ic.svg');
 
@@ -83,14 +84,19 @@ export default function HomeScreen() {
   const [goalToDelete, setGoalToDelete] = useState<string | null>(null);
 
   const [userName, setUserName] = useState('Traveler');
+  const [userAvatarUrl, setUserAvatarUrl] = useState<string | null>(null);
 
   const handleProfilePress = useCallback(() => {
     router.push('/Userprofile' as RelativePathString);
   }, [router]);
 
   const handleSettingsPress = useCallback(() => {
-    // TODO: Navigate to the settings screen when that route is implemented
-  }, []);
+    router.push('/Userprofile' as RelativePathString);
+  }, [router]);
+
+  const handleTracksPress = useCallback(() => {
+    router.push('/tracks' as RelativePathString);
+  }, [router]);
 
   // --- Search ---
   const handleSearchSubmit = useCallback(() => {
@@ -163,13 +169,30 @@ export default function HomeScreen() {
     }
   }, []);
 
-  useEffect(() => {
-    void loadGroups();
-    void loadGoals();
-    void getMyProfile()
-      .then((profile) => setUserName(profile.full_name || 'Traveler'))
-      .catch(() => undefined);
-  }, [loadGoals, loadGroups]);
+  useFocusEffect(
+    useCallback(() => {
+      let isCurrent = true;
+      void loadGroups();
+      void loadGoals();
+      void Promise.all([getMyProfile(), supabase.auth.getSession()])
+        .then(([profile, sessionResult]) => {
+          if (!isCurrent) return;
+        const sessionUser = sessionResult.data.session?.user;
+        setUserName(profile.full_name || 'Traveler');
+        setUserAvatarUrl(
+          profile.avatar_url
+            ?? sessionUser?.user_metadata?.avatar_url
+            ?? sessionUser?.user_metadata?.picture
+            ?? null,
+        );
+        })
+        .catch(() => undefined);
+
+      return () => {
+        isCurrent = false;
+      };
+    }, [loadGoals, loadGroups]),
+  );
 
   const handleAddGoal = useCallback(async (goalText: string) => {
     try {
@@ -411,7 +434,6 @@ export default function HomeScreen() {
       {/* Header: profile, greeting, and settings */}
       <View style={styles.header}>
         <View style={styles.headerIdentity}>
-          {/* TODO: Replace with user profile/avatar */}
           <TouchableOpacity
             accessibilityLabel="Open profile"
             accessibilityRole="button"
@@ -419,23 +441,42 @@ export default function HomeScreen() {
             onPress={handleProfilePress}
             style={styles.profileButton}
           >
-            <View style={styles.avatarPlaceholder}>
-              <Ionicons color={AutumnColors.body} name="person" size={19} />
-            </View>
+            {userAvatarUrl ? (
+              <Image
+                accessibilityLabel={`${userName}'s profile photo`}
+                contentFit="cover"
+                source={{ uri: userAvatarUrl }}
+                style={styles.avatarImage}
+              />
+            ) : (
+              <View style={styles.avatarPlaceholder}>
+                <Ionicons color={AutumnColors.body} name="person" size={19} />
+              </View>
+            )}
           </TouchableOpacity>
           <Text style={styles.greeting}>Hello, {userName}</Text>
         </View>
 
-        {/* Settings icon */}
-        <TouchableOpacity
-          accessibilityLabel="Open settings"
-          accessibilityRole="button"
-          hitSlop={10}
-          onPress={handleSettingsPress}
-          style={styles.settingsButton}
-        >
-          <Image source={settingsIcon} style={styles.settingsIcon} contentFit="contain" />
-        </TouchableOpacity>
+        <View style={styles.headerActions}>
+          <TouchableOpacity
+            accessibilityLabel="Open my tracked routes"
+            accessibilityRole="button"
+            hitSlop={10}
+            onPress={handleTracksPress}
+            style={styles.settingsButton}
+          >
+            <Ionicons color={AutumnColors.heading} name="footsteps-outline" size={21} />
+          </TouchableOpacity>
+          <TouchableOpacity
+            accessibilityLabel="Open settings"
+            accessibilityRole="button"
+            hitSlop={10}
+            onPress={handleSettingsPress}
+            style={styles.settingsButton}
+          >
+            <Image source={settingsIcon} style={styles.settingsIcon} contentFit="contain" />
+          </TouchableOpacity>
+        </View>
       </View>
 
       {/* Main heading */}
@@ -613,6 +654,8 @@ const styles = StyleSheet.create({
     height: 32,
     borderRadius: 16,
     backgroundColor: AutumnColors.chipBorder,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   greeting: {
     fontSize: 14,
@@ -624,6 +667,17 @@ const styles = StyleSheet.create({
     height: 28,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  headerActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  avatarImage: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: AutumnColors.chipBackground,
   },
   settingsIcon: {
     width: 18,

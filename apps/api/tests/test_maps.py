@@ -142,9 +142,7 @@ def test_text_search_resolves_a_remote_destination() -> None:
         "latitude": 35.6764,
         "longitude": 139.65,
     }
-    assert response.json()["places"][0]["photo_name"] == (
-        "places/ChIJ-tokyo/photos/photo-1"
-    )
+    assert response.json()["places"][0]["photo_name"] == ("places/ChIJ-tokyo/photos/photo-1")
     assert fake_places.text_query is not None
     assert fake_places.text_query.query == "Tokyo, Japan"
 

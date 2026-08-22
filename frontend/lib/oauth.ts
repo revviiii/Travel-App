@@ -4,7 +4,7 @@ import * as WebBrowser from 'expo-web-browser';
 import type { Session } from '@supabase/supabase-js';
 import { supabase } from '@/lib/supabase';
 
-export type SocialAuthProvider = 'google' | 'facebook' | 'apple';
+export type SocialAuthProvider = 'google' | 'apple';
 
 WebBrowser.maybeCompleteAuthSession();
 
@@ -18,14 +18,21 @@ export async function createSessionFromUrl(url: string): Promise<Session> {
   const providerError = params.error_description ?? params.error;
 
   if (errorCode || providerError) {
-    throw new Error(String(providerError ?? errorCode));
+    const message = String(providerError ?? errorCode);
+    let decodedMessage = message;
+    try {
+      decodedMessage = decodeURIComponent(message);
+    } catch {
+      // Keep the provider message as-is when it contains invalid percent escapes.
+    }
+    throw new Error(decodedMessage);
   }
 
   const code = params.code;
   if (typeof code === 'string' && code.length > 0) {
     const { data, error } = await supabase.auth.exchangeCodeForSession(code);
     if (error) throw error;
-    if (!data.session) throw new Error('Travel App could not create your sign-in session.');
+    if (!data.session) throw new Error('Pinara could not create your sign-in session.');
     return data.session;
   }
 
@@ -34,7 +41,7 @@ export async function createSessionFromUrl(url: string): Promise<Session> {
   if (typeof accessToken !== 'string' || typeof refreshToken !== 'string') {
     const { data } = await supabase.auth.getSession();
     if (data.session) return data.session;
-    throw new Error('Travel App did not receive a complete sign-in session.');
+    throw new Error('Pinara did not receive a complete sign-in session.');
   }
 
   const { data, error } = await supabase.auth.setSession({
@@ -42,7 +49,7 @@ export async function createSessionFromUrl(url: string): Promise<Session> {
     refresh_token: refreshToken,
   });
   if (error) throw error;
-  if (!data.session) throw new Error('Travel App could not save your sign-in session.');
+  if (!data.session) throw new Error('Pinara could not save your sign-in session.');
   return data.session;
 }
 

@@ -3,6 +3,7 @@ import {
   ActivityIndicator,
   Alert,
   FlatList,
+  Linking,
   Modal,
   ScrollView,
   StyleSheet,
@@ -18,7 +19,7 @@ import DateTimePicker, {
 import { Ionicons } from '@expo/vector-icons';
 import * as Calendar from 'expo-calendar';
 import { Image } from 'expo-image';
-import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import MapView, { Marker, Polyline } from 'react-native-maps';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { AutumnColors } from '@/constants/colors';
@@ -40,6 +41,7 @@ import {
   deleteTravelGoal,
   finalizeTripItinerary,
   getGroupGoals,
+  getMyPreferences,
   getTravelGoals,
   getTripPlaces,
   getTrips,
@@ -103,7 +105,7 @@ export default function DiscoveryScreen() {
     tripId?: string;
     section?: DiscoverySection;
   }>();
-  const { selectedPreferences } = usePreferences();
+  const { selectedPreferences, setPreferences } = usePreferences();
   const isGroupMode = Boolean(tripId);
   const initialDestination = destination?.trim() || 'Manila';
   const [destinationInput, setDestinationInput] = useState(initialDestination);
@@ -158,6 +160,35 @@ export default function DiscoveryScreen() {
   const [goalToDelete, setGoalToDelete] = useState<string | null>(null);
 
   const filterQuery = activeFilterOrder.slice().sort().join(',');
+
+  useFocusEffect(
+    useCallback(() => {
+      let isCurrent = true;
+
+      void getMyPreferences()
+        .then((preferences) => {
+          if (isCurrent) setPreferences(preferences);
+        })
+        .catch(() => undefined);
+
+      return () => {
+        isCurrent = false;
+      };
+    }, [setPreferences]),
+  );
+
+  useEffect(() => {
+    const nextFilters = Array.from(selectedPreferences).slice(0, 4);
+    setActiveFilterOrder((current) => {
+      if (
+        current.length === nextFilters.length
+        && current.every((value, index) => value === nextFilters[index])
+      ) {
+        return current;
+      }
+      return nextFilters;
+    });
+  }, [selectedPreferences]);
 
   useEffect(() => {
     void supabase.auth.getSession().then(({ data }) => {
@@ -426,6 +457,19 @@ export default function DiscoveryScreen() {
     setPlaceToSave(place);
   };
 
+  const openGoogleMapsPlace = async (place: PlaceMarker) => {
+    const query = `${place.location.latitude},${place.location.longitude}`;
+    const googleMapsUrl =
+      `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(query)}`
+      + `&query_place_id=${encodeURIComponent(place.place_id)}`;
+
+    try {
+      await Linking.openURL(googleMapsUrl);
+    } catch {
+      Alert.alert('Unable to open Google Maps', 'Please try again from your browser.');
+    }
+  };
+
   const handleSavePlace = async () => {
     if (!placeToSave || !choiceTripId) {
       return;
@@ -583,7 +627,7 @@ export default function DiscoveryScreen() {
           startDate,
           endDate,
           location: place.address ?? undefined,
-          notes: `${selectedTrip?.name ?? 'Travel App'} finalized itinerary`,
+          notes: `${selectedTrip?.name ?? 'Pinara'} finalized itinerary`,
         });
       }
       Alert.alert(
@@ -834,6 +878,7 @@ export default function DiscoveryScreen() {
                   }
                   actionLabel={`Save ${item.name} to a group`}
                   onActionPress={() => openSavePicker(item)}
+                  onDetailsPress={() => void openGoogleMapsPlace(item)}
                 />
               )}
               contentContainerStyle={styles.placeList}

@@ -16,7 +16,7 @@ def create_app() -> FastAPI:
     application = FastAPI(
         title=settings.app_name,
         version="0.1.0",
-        description="Backend services for the collaborative Travel App.",
+        description="Backend services for the collaborative Pinara app.",
     )
     allowed_origins = [
         origin.strip() for origin in settings.cors_origins.split(",") if origin.strip()

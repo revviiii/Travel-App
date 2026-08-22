@@ -1,1 +1,1 @@
-"""Travel App API package."""
+"""Pinara API package."""
