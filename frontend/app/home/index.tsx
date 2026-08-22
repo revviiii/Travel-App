@@ -11,6 +11,7 @@ import {
   View,
 } from 'react-native';
 import { Image } from 'expo-image';
+import * as ImagePicker from 'expo-image-picker';
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect, useRouter, type RelativePathString } from 'expo-router';
 import MapView, { Marker } from 'react-native-maps';
@@ -30,6 +31,7 @@ import {
   getTravelGoals,
   getMyProfile,
   getTrips,
+  updateTrip,
   TravelGoal,
   TripSummary,
 } from '@/lib/api';
@@ -49,6 +51,7 @@ interface GroupData {
   name: string;
   memberCount: number;
   currentUserRole: TripSummary['current_user_role'];
+  imageUrl: string | null;
 }
 
 function toGroupData(trip: TripSummary): GroupData {
@@ -57,6 +60,7 @@ function toGroupData(trip: TripSummary): GroupData {
     name: trip.name,
     memberCount: trip.member_count,
     currentUserRole: trip.current_user_role,
+    imageUrl: trip.image_url,
   };
 }
 
@@ -76,6 +80,10 @@ export default function HomeScreen() {
   const [groupError, setGroupError] = useState<string | null>(null);
   const [showCreateGroup, setShowCreateGroup] = useState(false);
   const [groupToDelete, setGroupToDelete] = useState<string | null>(null);
+  const [groupToManage, setGroupToManage] = useState<GroupData | null>(null);
+  const [managedGroupName, setManagedGroupName] = useState('');
+  const [managedGroupPhoto, setManagedGroupPhoto] = useState<ImagePicker.ImagePickerAsset | null>(null);
+  const [isSavingGroup, setIsSavingGroup] = useState(false);
 
   // Goals state
   const [goals, setGoals] = useState<TravelGoal[]>([]);
@@ -133,9 +141,82 @@ export default function HomeScreen() {
     }
   }, []);
 
-  const handleLongPressGroup = useCallback((id: string) => {
-    setGroupToDelete(id);
+  const handleLongPressGroup = useCallback((group: GroupData) => {
+    setGroupToManage(group);
+    setManagedGroupName(group.name);
+    setManagedGroupPhoto(null);
   }, []);
+
+  const handleChooseGroupPhoto = useCallback(async () => {
+    const result = await ImagePicker.launchImageLibraryAsync({
+      allowsEditing: true,
+      aspect: [16, 9],
+      mediaTypes: ['images'],
+      quality: 0.75,
+    });
+    if (!result.canceled && result.assets[0]) {
+      setManagedGroupPhoto(result.assets[0]);
+    }
+  }, []);
+
+  const handleSaveGroup = useCallback(async () => {
+    if (!groupToManage || !managedGroupName.trim()) return;
+    setIsSavingGroup(true);
+    try {
+      let imageUrl = groupToManage.imageUrl ?? undefined;
+      if (managedGroupPhoto) {
+        const { data: userResult, error: userError } = await supabase.auth.getUser();
+        if (userError) throw userError;
+        if (!userResult.user) throw new Error('Sign in again before changing a group photo.');
+
+        const photoResponse = await fetch(managedGroupPhoto.uri);
+        if (!photoResponse.ok) throw new Error('Pinara could not read the selected photo.');
+        const photoBytes = await photoResponse.arrayBuffer();
+        const contentType = managedGroupPhoto.mimeType?.startsWith('image/')
+          ? managedGroupPhoto.mimeType
+          : 'image/jpeg';
+        const extension = contentType === 'image/png' ? 'png' : 'jpg';
+        const storagePath = `${userResult.user.id}/${groupToManage.id}.${extension}`;
+        const { error: uploadError } = await supabase.storage
+          .from('trip-images')
+          .upload(storagePath, photoBytes, {
+            cacheControl: '3600',
+            contentType,
+            upsert: true,
+          });
+        if (uploadError) throw uploadError;
+        const { data: publicUrlResult } = supabase.storage
+          .from('trip-images')
+          .getPublicUrl(storagePath);
+        imageUrl = `${publicUrlResult.publicUrl}?v=${Date.now()}`;
+      }
+
+      const updatedTrip = await updateTrip(groupToManage.id, {
+        name: managedGroupName.trim(),
+        ...(imageUrl ? { image_url: imageUrl } : {}),
+      });
+      const updatedGroup = toGroupData(updatedTrip);
+      setGroups((current) => current.map((group) => (
+        group.id === updatedGroup.id ? updatedGroup : group
+      )));
+      setGroupToManage(null);
+      setManagedGroupPhoto(null);
+      Alert.alert('Group updated', 'The group name and picture are saved.');
+    } catch (error) {
+      Alert.alert(
+        'Unable to update group',
+        error instanceof Error ? error.message : 'Please try again.',
+      );
+    } finally {
+      setIsSavingGroup(false);
+    }
+  }, [groupToManage, managedGroupName, managedGroupPhoto]);
+
+  const handleManageDelete = useCallback(() => {
+    if (!groupToManage) return;
+    setGroupToDelete(groupToManage.id);
+    setGroupToManage(null);
+  }, [groupToManage]);
 
   const handleConfirmDeleteGroup = useCallback(async () => {
     if (groupToDelete !== null) {
@@ -236,13 +317,14 @@ export default function HomeScreen() {
       <GroupCard
         name={item.name}
         memberCount={item.memberCount}
+        imageUrl={item.imageUrl}
         onPress={() => {
           const path = `/group/${item.id}` as RelativePathString;
           router.push(path);
         }}
         onLongPress={
-          item.currentUserRole === 'owner'
-            ? () => handleLongPressGroup(item.id)
+          item.currentUserRole === 'owner' || item.currentUserRole === 'admin'
+            ? () => handleLongPressGroup(item)
             : undefined
         }
       />
@@ -523,6 +605,22 @@ export default function HomeScreen() {
         />
       </View>
 
+      <TouchableOpacity
+        accessibilityLabel="Open My Tracks route recorder"
+        accessibilityRole="button"
+        onPress={handleTracksPress}
+        style={styles.tracksShortcut}
+      >
+        <View style={styles.tracksShortcutIcon}>
+          <Ionicons color="#FFFFFF" name="footsteps" size={18} />
+        </View>
+        <View style={styles.tracksShortcutCopy}>
+          <Text style={styles.tracksShortcutTitle}>My Tracks</Text>
+          <Text style={styles.tracksShortcutSubtitle}>Record and save where you traveled</Text>
+        </View>
+        <Ionicons color={AutumnColors.body} name="chevron-forward" size={19} />
+      </TouchableOpacity>
+
       {/* Planner tabs — centered */}
       <View style={styles.tabRow}>
         <PlannerTab
@@ -553,6 +651,87 @@ export default function HomeScreen() {
         onCancel={() => setShowCreateGroup(false)}
         onCreate={handleCreateGroup}
       />
+
+      {/* Long-press group manager */}
+      <Modal
+        visible={groupToManage !== null}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setGroupToManage(null)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalCard}>
+            <Text style={styles.modalTitle}>Manage group</Text>
+            <Text style={styles.modalDescription}>
+              Rename the group, choose a new picture, or delete it.
+            </Text>
+            <TouchableOpacity
+              accessibilityLabel="Choose group picture"
+              accessibilityRole="button"
+              onPress={() => void handleChooseGroupPhoto()}
+              style={styles.groupPhotoPicker}
+            >
+              {managedGroupPhoto?.uri || groupToManage?.imageUrl ? (
+                <Image
+                  contentFit="cover"
+                  source={{ uri: managedGroupPhoto?.uri ?? groupToManage?.imageUrl ?? '' }}
+                  style={styles.groupPhotoPreview}
+                />
+              ) : (
+                <View style={styles.groupPhotoPlaceholder}>
+                  <Ionicons color={AutumnColors.primary} name="image-outline" size={26} />
+                </View>
+              )}
+              <Text style={styles.groupPhotoText}>Choose picture</Text>
+            </TouchableOpacity>
+            <TextInput
+              accessibilityLabel="Group name"
+              maxLength={120}
+              onChangeText={setManagedGroupName}
+              placeholder="Group name"
+              placeholderTextColor={AutumnColors.body}
+              style={styles.manageGroupInput}
+              value={managedGroupName}
+            />
+            <View style={styles.manageGroupActions}>
+              {groupToManage?.currentUserRole === 'owner' ? (
+                <TouchableOpacity
+                  accessibilityLabel="Delete group"
+                  accessibilityRole="button"
+                  disabled={isSavingGroup}
+                  onPress={handleManageDelete}
+                  style={styles.manageDeleteButton}
+                >
+                  <Ionicons color="#B42318" name="trash-outline" size={18} />
+                  <Text style={styles.manageDeleteText}>Delete</Text>
+                </TouchableOpacity>
+              ) : null}
+              <TouchableOpacity
+                accessibilityLabel="Cancel group changes"
+                accessibilityRole="button"
+                disabled={isSavingGroup}
+                onPress={() => setGroupToManage(null)}
+                style={styles.modalCancelButton}
+              >
+                <Text style={styles.modalCancelText}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                accessibilityLabel="Save group changes"
+                accessibilityRole="button"
+                disabled={isSavingGroup || !managedGroupName.trim()}
+                onPress={() => void handleSaveGroup()}
+                style={styles.modalClearButton}
+              >
+                {isSavingGroup ? (
+                  <ActivityIndicator color="#FFFFFF" size="small" />
+                ) : (
+                  <Text style={styles.modalClearText}>Save</Text>
+                )}
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
 
       {/* Clear Goal Confirmation Modal */}
       <Modal
@@ -744,6 +923,39 @@ const styles = StyleSheet.create({
     color: AutumnColors.chipText,
     padding: 0,
   },
+  tracksShortcut: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: AutumnColors.chipBorder,
+    borderRadius: 14,
+    backgroundColor: AutumnColors.chipBackground,
+    paddingHorizontal: 12,
+    paddingVertical: 9,
+    marginBottom: 12,
+    gap: 10,
+  },
+  tracksShortcutIcon: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: AutumnColors.primary,
+  },
+  tracksShortcutCopy: {
+    flex: 1,
+  },
+  tracksShortcutTitle: {
+    color: AutumnColors.heading,
+    fontSize: 14,
+    fontWeight: '700',
+  },
+  tracksShortcutSubtitle: {
+    color: AutumnColors.body,
+    fontSize: 11,
+    marginTop: 1,
+  },
 
   /* Tabs — centered row */
   tabRow: {
@@ -876,6 +1088,61 @@ const styles = StyleSheet.create({
     color: AutumnColors.body,
     lineHeight: 20,
     marginBottom: 24,
+  },
+  groupPhotoPicker: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    marginBottom: 14,
+  },
+  groupPhotoPreview: {
+    width: 64,
+    height: 48,
+    borderRadius: 10,
+    backgroundColor: AutumnColors.chipBackground,
+  },
+  groupPhotoPlaceholder: {
+    width: 64,
+    height: 48,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: AutumnColors.chipBackground,
+    borderWidth: 1,
+    borderColor: AutumnColors.chipBorder,
+  },
+  groupPhotoText: {
+    color: AutumnColors.primary,
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  manageGroupInput: {
+    borderWidth: 1,
+    borderColor: AutumnColors.chipBorder,
+    borderRadius: 10,
+    backgroundColor: '#FFFFFF',
+    color: AutumnColors.heading,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    marginBottom: 18,
+  },
+  manageGroupActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'flex-end',
+    gap: 9,
+  },
+  manageDeleteButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    marginRight: 'auto',
+    paddingVertical: 9,
+  },
+  manageDeleteText: {
+    color: '#B42318',
+    fontSize: 13,
+    fontWeight: '600',
   },
   modalActions: {
     flexDirection: 'row',

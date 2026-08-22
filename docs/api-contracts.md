@@ -99,6 +99,18 @@ Returns only trips visible to the authenticated member. Each item includes
 
 Returns one visible trip, or `404` when it does not exist or RLS hides it.
 
+### `PATCH /api/v1/trips/{trip_id}`
+
+Owners and admins can rename a group or update its public image URL. RLS rejects
+updates from ordinary members.
+
+```json
+{
+  "name": "Japan Adventure",
+  "image_url": "https://project.supabase.co/storage/v1/object/public/trip-images/..."
+}
+```
+
 ### `GET /api/v1/trips/{trip_id}/members`
 
 Returns the visible trip membership list, including each member's role, profile

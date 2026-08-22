@@ -1,3 +1,4 @@
+import { Image } from 'expo-image';
 import { Platform, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { AutumnColors } from '@/constants/colors';
 
@@ -5,6 +6,8 @@ interface GroupJumpBackCardProps {
   title: string;
   attractionCount: number;
   onPress?: () => void;
+  photoUri?: string;
+  photoHeaders?: Record<string, string>;
 }
 
 /**
@@ -14,7 +17,13 @@ interface GroupJumpBackCardProps {
  * // TODO: Replace with group itinerary/recommendation API data
  * // TODO: Replace with actual place image from API
  */
-export function GroupJumpBackCard({ title, attractionCount, onPress }: GroupJumpBackCardProps) {
+export function GroupJumpBackCard({
+  title,
+  attractionCount,
+  onPress,
+  photoUri,
+  photoHeaders,
+}: GroupJumpBackCardProps) {
   return (
     <TouchableOpacity
       activeOpacity={0.85}
@@ -23,8 +32,15 @@ export function GroupJumpBackCard({ title, attractionCount, onPress }: GroupJump
       accessibilityLabel={`${title}, ${attractionCount} attractions`}
       style={styles.card}
     >
-      {/* Image placeholder */}
-      <View style={styles.imagePlaceholder} />
+      {photoUri ? (
+        <Image
+          contentFit="cover"
+          source={{ uri: photoUri, headers: photoHeaders }}
+          style={StyleSheet.absoluteFillObject}
+        />
+      ) : (
+        <View style={styles.imagePlaceholder} />
+      )}
 
       {/* Overlay content */}
       <View style={styles.overlay}>

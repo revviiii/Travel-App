@@ -21,12 +21,20 @@ class TripCreate(BaseModel):
     budget: Decimal | None = Field(default=None, ge=0, max_digits=12, decimal_places=2)
 
 
+class TripUpdate(BaseModel):
+    model_config = ConfigDict(str_strip_whitespace=True)
+
+    name: str | None = Field(default=None, min_length=1, max_length=120)
+    image_url: str | None = Field(default=None, max_length=2048)
+
+
 class TripResponse(BaseModel):
     model_config = ConfigDict(extra="ignore")
 
     id: UUID
     owner_id: UUID
     name: str
+    image_url: str | None = None
     destination_name: str | None = None
     destination_latitude: float | None = None
     destination_longitude: float | None = None

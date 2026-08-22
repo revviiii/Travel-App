@@ -50,6 +50,7 @@ export type TripSummary = {
   id: string;
   owner_id: string;
   name: string;
+  image_url: string | null;
   destination_name: string | null;
   start_date: string | null;
   end_date: string | null;
@@ -367,6 +368,16 @@ export function createTrip(name: string): Promise<TripSummary> {
   return authenticatedRequest('/api/v1/trips', {
     method: 'POST',
     body: { name },
+  });
+}
+
+export function updateTrip(
+  tripId: string,
+  update: { name?: string; image_url?: string },
+): Promise<TripSummary> {
+  return authenticatedRequest(`/api/v1/trips/${encodeURIComponent(tripId)}`, {
+    method: 'PATCH',
+    body: update,
   });
 }
 

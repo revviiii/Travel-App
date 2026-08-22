@@ -21,6 +21,7 @@ from app.schemas.trip import (
     TripInvitationResponse,
     TripMemberResponse,
     TripResponse,
+    TripUpdate,
 )
 
 router = APIRouter(prefix="/trips", tags=["trips"])
@@ -66,6 +67,28 @@ async def read_trip(
 ) -> TripResponse:
     try:
         trip = await supabase.get_trip(trip_id, user.id)
+    except SupabaseResourceNotFoundError as exc:
+        raise_trip_not_found(exc)
+    except SupabaseApiError as exc:
+        raise_supabase_api_error(exc)
+    return TripResponse.model_validate(trip)
+
+
+@router.patch("/{trip_id}", response_model=TripResponse)
+async def update_trip(
+    trip_id: UUID,
+    update: TripUpdate,
+    user: Annotated[CurrentUser, Depends(get_current_user)],
+    supabase: Annotated[SupabaseClient, Depends(get_supabase_client)],
+) -> TripResponse:
+    values = update.model_dump(exclude_none=True)
+    if not values:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="Provide a group name or image URL",
+        )
+    try:
+        trip = await supabase.update_trip(trip_id, user.id, values)
     except SupabaseResourceNotFoundError as exc:
         raise_trip_not_found(exc)
     except SupabaseApiError as exc:
