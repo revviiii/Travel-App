@@ -9,8 +9,8 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
-import { getMyProfile } from '@/lib/api';
 import { createSessionFromUrl } from '@/lib/oauth';
+import { getPostAuthRoute } from '@/lib/post-auth-route';
 
 export default function AuthCallbackScreen() {
   const router = useRouter();
@@ -26,8 +26,7 @@ export default function AuthCallbackScreen() {
     async function finishSignIn(url: string) {
       try {
         await createSessionFromUrl(url);
-        const profile = await getMyProfile();
-        router.replace(profile.onboarding_completed ? '/home' : '/preferences');
+        router.replace(await getPostAuthRoute());
       } catch (error) {
         setErrorMessage(
           error instanceof Error

@@ -4,10 +4,10 @@ import { Image } from 'expo-image';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { AutumnColors } from '@/constants/colors';
-import { getMyProfile } from '@/lib/api';
+import { getPostAuthRoute } from '@/lib/post-auth-route';
 import { supabase } from '@/lib/supabase';
 
-const appLogo = require('@/assets/images/app-logo.svg');
+const appLogo = require('@/assets/images/pinara-icon.png');
 
 /** Delay in milliseconds before auto-navigating to onboarding. Easy to change later. */
 const SPLASH_DELAY_MS = 2000;
@@ -31,10 +31,8 @@ export default function StartingScreen() {
       }
 
       try {
-        const profile = await getMyProfile();
-        if (isCurrent) {
-          router.replace(profile.onboarding_completed ? '/home' : '/preferences');
-        }
+        const nextRoute = await getPostAuthRoute();
+        if (isCurrent) router.replace(nextRoute);
       } catch {
         if (isCurrent) router.replace('/Login');
       }
@@ -52,9 +50,9 @@ export default function StartingScreen() {
         source={appLogo}
         style={styles.logo}
         contentFit="contain"
-        accessibilityLabel="App logo"
+        accessibilityLabel="Pinara logo"
       />
-      <Text style={styles.title}>Ramyl</Text>
+      <Text style={styles.title}>Pinara</Text>
     </View>
   );
 }

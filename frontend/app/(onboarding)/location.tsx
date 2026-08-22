@@ -1,28 +1,52 @@
-import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import { useState } from 'react';
+import {
+  ActivityIndicator,
+  Alert,
+  View,
+  Text,
+  StyleSheet,
+  TouchableOpacity,
+} from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
+import { Image } from 'expo-image';
+import * as Location from 'expo-location';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { AutumnColors } from '@/constants/colors';
 
+const locationIllustration = require('@/assets/images/slide3.png');
+
 export default function LocationSetup() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const [isRequestingLocation, setIsRequestingLocation] = useState(false);
 
   const handleBack = () => {
     router.back();
   };
 
   const handleSkip = () => {
-    // TODO: Continue to authentication flow
     router.replace('/Login');
   };
 
-  const handleAllowLocation = () => {
-    // TODO: Request device location permission using Expo Location
-    router.replace('/Login');
+  const handleAllowLocation = async () => {
+    setIsRequestingLocation(true);
+    try {
+      const permission = await Location.requestForegroundPermissionsAsync();
+      if (!permission.granted) {
+        Alert.alert(
+          'Location permission not granted',
+          'You can still use Pinara and search for any destination manually.',
+        );
+      }
+      router.replace('/Login');
+    } finally {
+      setIsRequestingLocation(false);
+    }
   };
 
   const handleSetLocation = () => {
-    // TODO: Navigate to manual location selection
+    router.replace('/Login');
   };
 
   return (
@@ -35,8 +59,7 @@ export default function LocationSetup() {
           accessibilityLabel="Go back"
           style={styles.backButton}
         >
-          {/* TODO: Replace with final Figma Back arrow SVG */}
-          <View style={styles.backIconPlaceholder} />
+          <Ionicons color={AutumnColors.heading} name="chevron-back" size={24} />
         </TouchableOpacity>
 
         <TouchableOpacity
@@ -46,16 +69,22 @@ export default function LocationSetup() {
           style={styles.skipButton}
         >
           <Text style={styles.skipText}>Skip</Text>
-          {/* TODO: Replace with final Figma Skip chevron SVG */}
-          <View style={styles.skipChevronPlaceholder} />
+          <Ionicons color={AutumnColors.primary} name="chevron-forward" size={18} />
         </TouchableOpacity>
       </View>
 
       {/* Main Content */}
       <View style={styles.content}>
-        {/* TODO: Replace with exported Figma location illustration */}
-        <View style={styles.imagePlaceholder}>
-          <Text style={styles.imagePlaceholderText}>LOCATION IMAGE</Text>
+        <View style={styles.illustrationFrame}>
+          <Image
+            accessibilityLabel="Map, passport, airplane, and location pin illustration"
+            contentFit="cover"
+            source={locationIllustration}
+            style={styles.illustration}
+          />
+          <View style={styles.locationBadge}>
+            <Ionicons color="#FFFFFF" name="location" size={30} />
+          </View>
         </View>
 
         <Text style={styles.heading}>Turn on Location</Text>
@@ -68,11 +97,16 @@ export default function LocationSetup() {
       <View style={[styles.actions, { paddingBottom: insets.bottom + 24 }]}>
         <TouchableOpacity
           style={styles.primaryButton}
-          onPress={handleAllowLocation}
+          disabled={isRequestingLocation}
+          onPress={() => void handleAllowLocation()}
           accessibilityRole="button"
           accessibilityLabel="Allow Location Access"
         >
-          <Text style={styles.primaryButtonText}>Allow Location Access</Text>
+          {isRequestingLocation ? (
+            <ActivityIndicator color="#FFFFFF" />
+          ) : (
+            <Text style={styles.primaryButtonText}>Allow Location Access</Text>
+          )}
         </TouchableOpacity>
 
         <TouchableOpacity
@@ -107,12 +141,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
-  backIconPlaceholder: {
-    width: 20,
-    height: 20,
-    borderRadius: 4,
-    backgroundColor: AutumnColors.chipBorder,
-  },
   skipButton: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -125,31 +153,36 @@ const styles = StyleSheet.create({
     fontWeight: '500',
     color: AutumnColors.primary,
   },
-  skipChevronPlaceholder: {
-    width: 12,
-    height: 12,
-    borderRadius: 3,
-    backgroundColor: AutumnColors.chipBorder,
-  },
   content: {
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
     paddingBottom: 40,
   },
-  imagePlaceholder: {
+  illustrationFrame: {
     width: '85%',
     aspectRatio: 4 / 3,
     borderRadius: 16,
-    backgroundColor: AutumnColors.chipBorder,
-    justifyContent: 'center',
-    alignItems: 'center',
+    backgroundColor: AutumnColors.chipBackground,
+    overflow: 'hidden',
     marginBottom: 32,
   },
-  imagePlaceholderText: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: AutumnColors.body,
+  illustration: {
+    width: '100%',
+    height: '100%',
+  },
+  locationBadge: {
+    position: 'absolute',
+    right: 16,
+    bottom: 16,
+    width: 52,
+    height: 52,
+    borderRadius: 26,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: AutumnColors.primary,
+    borderWidth: 3,
+    borderColor: AutumnColors.background,
   },
   heading: {
     fontSize: 22,

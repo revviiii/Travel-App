@@ -4,7 +4,7 @@ import * as WebBrowser from 'expo-web-browser';
 import type { Session } from '@supabase/supabase-js';
 import { supabase } from '@/lib/supabase';
 
-export type SocialAuthProvider = 'google' | 'apple';
+export type SocialAuthProvider = 'google';
 
 WebBrowser.maybeCompleteAuthSession();
 

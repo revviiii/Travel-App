@@ -11,19 +11,16 @@ import {
   View,
 } from 'react-native';
 import { supabase } from '@/lib/supabase';
-import { getMyProfile } from '@/lib/api';
-import { signInWithSocialProvider, type SocialAuthProvider } from '@/lib/oauth';
+import { signInWithSocialProvider } from '@/lib/oauth';
+import { getPostAuthRoute } from '@/lib/post-auth-route';
 
 const googleIcon = require('@/assets/images/Google_ic.svg');
-const appleIcon = require('@/assets/images/Apple_ic.svg');
 const emailIcon = require('@/assets/images/Email_ic.svg');
 const lockIcon = require('@/assets/images/Lock_ic.svg');
 const seeIcon = require('@/assets/images/See_ic.svg');
 const unseeIcon = require('@/assets/images/Unsee_ic.svg');
 
 const MINIMUM_PASSWORD_LENGTH = 8;
-
-type SocialProvider = 'Google' | 'Apple';
 
 export default function LoginScreen() {
   const passwordInputRef = useRef<TextInput>(null);
@@ -38,18 +35,17 @@ export default function LoginScreen() {
     password.length >= MINIMUM_PASSWORD_LENGTH;
 
   const routeAfterLogin = async () => {
-    const profile = await getMyProfile();
-    router.replace(profile.onboarding_completed ? '/home' : '/preferences');
+    router.replace(await getPostAuthRoute());
   };
 
-  const handleSocialLogin = async (provider: SocialProvider) => {
+  const handleSocialLogin = async () => {
     setIsLoading(true);
     try {
-      await signInWithSocialProvider(provider.toLowerCase() as SocialAuthProvider);
+      await signInWithSocialProvider('google');
       await routeAfterLogin();
     } catch (error) {
       Alert.alert(
-        `Unable to sign in with ${provider}`,
+        'Unable to sign in with Google',
         error instanceof Error ? error.message : 'Please try again.',
       );
     } finally {
@@ -274,17 +270,7 @@ export default function LoginScreen() {
               <SocialButton
                 icon={googleIcon}
                 label="Continue With Google"
-                onPress={() =>
-                  void handleSocialLogin('Google')
-                }
-              />
-
-              <SocialButton
-                icon={appleIcon}
-                label="Continue With Apple"
-                onPress={() =>
-                  void handleSocialLogin('Apple')
-                }
+                onPress={() => void handleSocialLogin()}
               />
 
             </View>

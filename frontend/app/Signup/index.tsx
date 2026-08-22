@@ -11,7 +11,7 @@ import {
   View,
 } from 'react-native';
 import { supabase } from '@/lib/supabase';
-import { signInWithSocialProvider, type SocialAuthProvider } from '@/lib/oauth';
+import { signInWithSocialProvider } from '@/lib/oauth';
 
 const userIcon = require('@/assets/images/User_ic.svg');
 const emailIcon = require('@/assets/images/Email_ic.svg');
@@ -19,14 +19,12 @@ const lockIcon = require('@/assets/images/Lock_ic.svg');
 const seeIcon = require('@/assets/images/See_ic.svg');
 const unseeIcon = require('@/assets/images/Unsee_ic.svg');
 const googleIcon = require('@/assets/images/Google_ic.svg');
-const appleIcon = require('@/assets/images/Apple_ic.svg');
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const MINIMUM_PASSWORD_LENGTH = 8;
 
 type FieldName = 'fullName' | 'email' | 'password';
 type FormErrors = Partial<Record<FieldName, string>>;
-type SocialProvider = 'Google' | 'Apple';
 
 export default function SignupScreen() {
   const router = useRouter();
@@ -127,16 +125,14 @@ export default function SignupScreen() {
     router.replace('/preferences');
   };
 
-  const handleSocialSignup = async (
-    provider: SocialProvider,
-  ) => {
+  const handleSocialSignup = async () => {
     setIsLoading(true);
     try {
-      await signInWithSocialProvider(provider.toLowerCase() as SocialAuthProvider);
+      await signInWithSocialProvider('google');
       router.replace('/preferences');
     } catch (error) {
       Alert.alert(
-        `Unable to sign up with ${provider}`,
+        'Unable to sign up with Google',
         error instanceof Error ? error.message : 'Please try again.',
       );
     } finally {
@@ -304,17 +300,7 @@ export default function SignupScreen() {
           <SocialButton
             icon={googleIcon}
             label="Sign up with Google"
-            onPress={() =>
-              void handleSocialSignup('Google')
-            }
-          />
-
-          <SocialButton
-            icon={appleIcon}
-            label="Sign up with Apple"
-            onPress={() =>
-              void handleSocialSignup('Apple')
-            }
+            onPress={() => void handleSocialSignup()}
           />
         </View>
 

@@ -48,6 +48,7 @@ real API keys.
 
 ## Documentation
 
+- [Physical Android and iPhone testing guide](docs/phone-testing-guide.md)
 - [Frontend, backend, and database local testing guide](docs/full-stack-local-testing-guide.md)
 - [Ramyl implementation roadmap](docs/ramyl-implementation-roadmap.md)
 - [Backend architecture](docs/architecture.md)

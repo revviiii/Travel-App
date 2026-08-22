@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -12,6 +12,7 @@ import {
 } from 'react-native';
 import { Image } from 'expo-image';
 import * as ImagePicker from 'expo-image-picker';
+import * as Location from 'expo-location';
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect, useRouter, type RelativePathString } from 'expo-router';
 import MapView, { Marker } from 'react-native-maps';
@@ -29,8 +30,10 @@ import {
   deleteTravelGoal,
   deleteTrip,
   getTravelGoals,
+  getMyPreferences,
   getMyProfile,
   getTrips,
+  searchPlacesByText,
   updateTrip,
   TravelGoal,
   TripSummary,
@@ -72,7 +75,10 @@ export default function HomeScreen() {
   const [activeTab, setActiveTab] = useState<PlannerSection>('group');
 
   // Destination search
-  const [destination, setDestination] = useState('Manila');
+  const [destination, setDestination] = useState('');
+  const [mapCenter, setMapCenter] = useState(MANILA_CENTER);
+  const [mapLabel, setMapLabel] = useState('Manila');
+  const [isResolvingMap, setIsResolvingMap] = useState(false);
 
   // Group state
   const [groups, setGroups] = useState<GroupData[]>([]);
@@ -94,10 +100,6 @@ export default function HomeScreen() {
   const [userName, setUserName] = useState('Traveler');
   const [userAvatarUrl, setUserAvatarUrl] = useState<string | null>(null);
 
-  const handleProfilePress = useCallback(() => {
-    router.push('/Userprofile' as RelativePathString);
-  }, [router]);
-
   const handleSettingsPress = useCallback(() => {
     router.push('/Userprofile' as RelativePathString);
   }, [router]);
@@ -113,6 +115,74 @@ export default function HomeScreen() {
     const path = `/discovery?destination=${encodeURIComponent(selectedDestination)}` as RelativePathString;
     router.push(path);
   }, [destination, router]);
+
+  useEffect(() => {
+    let isCurrent = true;
+
+    async function showCurrentLocation() {
+      const permission = await Location.getForegroundPermissionsAsync();
+      if (!permission.granted) return;
+
+      const position = await Location.getLastKnownPositionAsync({
+        maxAge: 5 * 60 * 1000,
+        requiredAccuracy: 2000,
+      }) ?? await Location.getCurrentPositionAsync({
+        accuracy: Location.Accuracy.Balanced,
+      });
+      if (!isCurrent) return;
+
+      const nextCenter = {
+        latitude: position.coords.latitude,
+        longitude: position.coords.longitude,
+      };
+      setMapCenter(nextCenter);
+
+      try {
+        const [address] = await Location.reverseGeocodeAsync(nextCenter);
+        const currentPlace = address?.city
+          ?? address?.subregion
+          ?? address?.region
+          ?? address?.country;
+        if (isCurrent && currentPlace) {
+          setDestination(currentPlace);
+          setMapLabel(currentPlace);
+        }
+      } catch {
+        if (isCurrent) setMapLabel('Your current location');
+      }
+    }
+
+    void showCurrentLocation().catch(() => undefined);
+    return () => {
+      isCurrent = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    const query = destination.trim();
+    if (query.length < 2) return;
+
+    let isCurrent = true;
+    const timer = setTimeout(() => {
+      setIsResolvingMap(true);
+      void searchPlacesByText(query)
+        .then(({ places }) => {
+          const firstPlace = places[0];
+          if (!isCurrent || !firstPlace) return;
+          setMapCenter(firstPlace.location);
+          setMapLabel(firstPlace.name || query);
+        })
+        .catch(() => undefined)
+        .finally(() => {
+          if (isCurrent) setIsResolvingMap(false);
+        });
+    }, 650);
+
+    return () => {
+      isCurrent = false;
+      clearTimeout(timer);
+    };
+  }, [destination]);
 
   // --- Groups ---
   const loadGroups = useCallback(async () => {
@@ -255,24 +325,28 @@ export default function HomeScreen() {
       let isCurrent = true;
       void loadGroups();
       void loadGoals();
-      void Promise.all([getMyProfile(), supabase.auth.getSession()])
-        .then(([profile, sessionResult]) => {
+      void Promise.all([getMyProfile(), getMyPreferences(), supabase.auth.getSession()])
+        .then(([profile, preferences, sessionResult]) => {
           if (!isCurrent) return;
-        const sessionUser = sessionResult.data.session?.user;
-        setUserName(profile.full_name || 'Traveler');
-        setUserAvatarUrl(
-          profile.avatar_url
-            ?? sessionUser?.user_metadata?.avatar_url
-            ?? sessionUser?.user_metadata?.picture
-            ?? null,
-        );
+          if (preferences.length === 0) {
+            router.replace('/preferences');
+            return;
+          }
+          const sessionUser = sessionResult.data.session?.user;
+          setUserName(profile.full_name || 'Traveler');
+          setUserAvatarUrl(
+            profile.avatar_url
+              ?? sessionUser?.user_metadata?.avatar_url
+              ?? sessionUser?.user_metadata?.picture
+              ?? null,
+          );
         })
         .catch(() => undefined);
 
       return () => {
         isCurrent = false;
       };
-    }, [loadGoals, loadGroups]),
+    }, [loadGoals, loadGroups, router]),
   );
 
   const handleAddGoal = useCallback(async (goalText: string) => {
@@ -516,13 +590,7 @@ export default function HomeScreen() {
       {/* Header: profile, greeting, and settings */}
       <View style={styles.header}>
         <View style={styles.headerIdentity}>
-          <TouchableOpacity
-            accessibilityLabel="Open profile"
-            accessibilityRole="button"
-            hitSlop={10}
-            onPress={handleProfilePress}
-            style={styles.profileButton}
-          >
+          <View style={styles.profileButton}>
             {userAvatarUrl ? (
               <Image
                 accessibilityLabel={`${userName}'s profile photo`}
@@ -535,7 +603,7 @@ export default function HomeScreen() {
                 <Ionicons color={AutumnColors.body} name="person" size={19} />
               </View>
             )}
-          </TouchableOpacity>
+          </View>
           <Text style={styles.greeting}>Hello, {userName}</Text>
         </View>
 
@@ -569,23 +637,30 @@ export default function HomeScreen() {
       <TouchableOpacity
         activeOpacity={0.9}
         accessibilityRole="button"
-        accessibilityLabel="Open live Manila map"
+        accessibilityLabel={`Open recommendations near ${mapLabel}`}
         onPress={handleSearchSubmit}
         style={styles.mapPlaceholder}
       >
         <MapView
-          initialRegion={{
-            ...MANILA_CENTER,
+          region={{
+            ...mapCenter,
             latitudeDelta: 0.12,
             longitudeDelta: 0.12,
           }}
           pointerEvents="none"
           style={StyleSheet.absoluteFillObject}
         >
-          <Marker coordinate={MANILA_CENTER} title="Manila" />
+          <Marker coordinate={mapCenter} title={mapLabel} />
         </MapView>
+        {isResolvingMap ? (
+          <View style={styles.mapLoadingBadge}>
+            <ActivityIndicator color={AutumnColors.primary} size="small" />
+          </View>
+        ) : null}
         <View style={styles.mapPreviewLabel}>
-          <Text style={styles.mapPlaceholderText}>Open live recommendations</Text>
+          <Text numberOfLines={1} style={styles.mapPlaceholderText}>
+            Explore {mapLabel}
+          </Text>
         </View>
       </TouchableOpacity>
 
@@ -896,6 +971,17 @@ const styles = StyleSheet.create({
     paddingVertical: 6,
     borderRadius: 14,
     backgroundColor: AutumnColors.primary,
+  },
+  mapLoadingBadge: {
+    position: 'absolute',
+    right: 10,
+    top: 10,
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(255, 249, 241, 0.95)',
   },
 
   /* Search */
