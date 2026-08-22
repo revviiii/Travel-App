@@ -2,6 +2,7 @@
   "expo": {
     "name": "Travel App",
     "slug": "travel-app",
+    "owner": "ramylsalazars-team",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
@@ -51,6 +52,11 @@
     "experiments": {
       "typedRoutes": true,
       "reactCompiler": true
+    },
+    "extra": {
+      "eas": {
+        "projectId": "cd2015b3-1f8b-46b7-b28a-cf0b132b9f96"
+      }
     }
   }
 }
