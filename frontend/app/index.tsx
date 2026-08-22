@@ -7,7 +7,7 @@ import { AutumnColors } from '@/constants/colors';
 import { getPostAuthRoute } from '@/lib/post-auth-route';
 import { supabase } from '@/lib/supabase';
 
-const appLogo = require('@/assets/images/pinara-icon.png');
+const appLogo = require('@/assets/images/app-logo.svg');
 
 /** Delay in milliseconds before auto-navigating to onboarding. Easy to change later. */
 const SPLASH_DELAY_MS = 2000;
