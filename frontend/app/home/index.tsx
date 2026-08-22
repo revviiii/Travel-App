@@ -11,6 +11,7 @@ import {
   View,
 } from 'react-native';
 import { Image } from 'expo-image';
+import { Ionicons } from '@expo/vector-icons';
 import { useRouter, type RelativePathString } from 'expo-router';
 import MapView, { Marker } from 'react-native-maps';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -361,8 +362,7 @@ export default function HomeScreen() {
             {/* Section header */}
             <View style={styles.goalsHeader}>
               <Text style={styles.goalsTitle}>TRAVEL GOALS</Text>
-              {/* TODO: Replace with final Figma SVG icon */}
-              <View style={styles.bellPlaceholder} />
+              <Ionicons color={AutumnColors.body} name="notifications-outline" size={20} />
             </View>
 
             {/* Goal input */}
@@ -419,7 +419,9 @@ export default function HomeScreen() {
             onPress={handleProfilePress}
             style={styles.profileButton}
           >
-            <View style={styles.avatarPlaceholder} />
+            <View style={styles.avatarPlaceholder}>
+              <Ionicons color={AutumnColors.body} name="person" size={19} />
+            </View>
           </TouchableOpacity>
           <Text style={styles.greeting}>Hello, {userName}</Text>
         </View>
@@ -466,9 +468,7 @@ export default function HomeScreen() {
 
       {/* Search / destination field */}
       <View style={styles.searchContainer}>
-        {/* TODO: Replace with final Figma location/search SVG */}
-        <View style={styles.searchIconPlaceholder} />
-        {/* TODO: Connect destination search to Places/Maps API */}
+        <Ionicons color={AutumnColors.body} name="search" size={18} />
         <TextInput
           style={styles.searchInput}
           value={destination}

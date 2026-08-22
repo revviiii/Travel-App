@@ -1,3 +1,5 @@
+import { Ionicons } from '@expo/vector-icons';
+import { Image } from 'expo-image';
 import { Platform, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { AutumnColors } from '@/constants/colors';
 
@@ -11,6 +13,8 @@ interface PlaceCardProps {
   onActionPress?: () => void;
   /** Optional callback for the circular Add-to-Itinerary action */
   onAddToItinerary?: () => void;
+  photoUri?: string;
+  photoHeaders?: Record<string, string>;
 }
 
 /**
@@ -27,6 +31,8 @@ export function PlaceCard({
   actionLabel = 'View details',
   onActionPress,
   onAddToItinerary,
+  photoUri,
+  photoHeaders,
 }: PlaceCardProps) {
   const action = onActionPress ?? onAddToItinerary;
   const resolvedActionLabel =
@@ -34,8 +40,19 @@ export function PlaceCard({
 
   return (
     <View style={styles.card}>
-      {/* TODO: Replace with actual place image from API */}
-      <View style={styles.imagePlaceholder} />
+      {photoUri ? (
+        <Image
+          accessibilityLabel={`Photo of ${name}`}
+          contentFit="cover"
+          source={{ uri: photoUri, headers: photoHeaders }}
+          style={styles.placeImage}
+          transition={180}
+        />
+      ) : (
+        <View style={styles.imagePlaceholder}>
+          <Ionicons color={AutumnColors.chipBorder} name="image-outline" size={28} />
+        </View>
+      )}
 
       <View style={styles.content}>
         <View style={styles.categoryBadge}>
@@ -56,7 +73,6 @@ export function PlaceCard({
         </View>
       </View>
 
-      {/* TODO: Replace with final Figma link/share SVG icon */}
       <TouchableOpacity
         disabled={!action}
         onPress={action}
@@ -64,8 +80,7 @@ export function PlaceCard({
         accessibilityRole="button"
         accessibilityLabel={resolvedActionLabel}
       >
-        {/* TODO: Replace with final Figma Add-to-Itinerary SVG */}
-        <View style={styles.linkIconPlaceholder} />
+        <Ionicons color={AutumnColors.primary} name="add" size={20} />
       </TouchableOpacity>
     </View>
   );
@@ -98,6 +113,14 @@ const styles = StyleSheet.create({
     height: 64,
     borderRadius: 10,
     backgroundColor: AutumnColors.heading,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  placeImage: {
+    width: 64,
+    height: 64,
+    borderRadius: 10,
+    backgroundColor: AutumnColors.chipBackground,
   },
   content: {
     flex: 1,
@@ -151,11 +174,5 @@ const styles = StyleSheet.create({
     borderColor: AutumnColors.chipBorder,
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  linkIconPlaceholder: {
-    width: 14,
-    height: 14,
-    borderRadius: 3,
-    backgroundColor: AutumnColors.chipBorder,
   },
 });

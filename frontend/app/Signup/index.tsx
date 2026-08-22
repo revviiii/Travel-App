@@ -11,6 +11,7 @@ import {
   View,
 } from 'react-native';
 import { supabase } from '@/lib/supabase';
+import { signInWithSocialProvider, type SocialAuthProvider } from '@/lib/oauth';
 
 const userIcon = require('@/assets/images/User_ic.svg');
 const emailIcon = require('@/assets/images/Email_ic.svg');
@@ -127,13 +128,21 @@ export default function SignupScreen() {
     router.replace('/preferences');
   };
 
-  const handleSocialSignup = (
+  const handleSocialSignup = async (
     provider: SocialProvider,
   ) => {
-    Alert.alert(
-      `${provider} sign up`,
-      `${provider} authentication will be connected here.`,
-    );
+    setIsLoading(true);
+    try {
+      await signInWithSocialProvider(provider.toLowerCase() as SocialAuthProvider);
+      router.replace('/preferences');
+    } catch (error) {
+      Alert.alert(
+        `Unable to sign up with ${provider}`,
+        error instanceof Error ? error.message : 'Please try again.',
+      );
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -297,7 +306,7 @@ export default function SignupScreen() {
             icon={googleIcon}
             label="Sign up with Google"
             onPress={() =>
-              handleSocialSignup('Google')
+              void handleSocialSignup('Google')
             }
           />
 
@@ -306,7 +315,7 @@ export default function SignupScreen() {
             iconBackground="#1877F2"
             label="Sign up with Facebook"
             onPress={() =>
-              handleSocialSignup('Facebook')
+              void handleSocialSignup('Facebook')
             }
           />
 
@@ -314,7 +323,7 @@ export default function SignupScreen() {
             icon={appleIcon}
             label="Sign up with Apple"
             onPress={() =>
-              handleSocialSignup('Apple')
+              void handleSocialSignup('Apple')
             }
           />
         </View>

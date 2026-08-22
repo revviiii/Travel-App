@@ -8,7 +8,6 @@ import {
   View,
 } from 'react-native';
 import { useState } from 'react';
-import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { AutumnColors } from '@/constants/colors';
@@ -41,25 +40,12 @@ export default function PreferencesScreen() {
     }
   };
 
-  const handleSkip = () => void saveAndContinue([]);
-
   const handleContinue = () => void saveAndContinue([...selectedPreferences]);
+  const canContinue = selectedPreferences.size > 0 && !isSaving;
 
   return (
     <View style={[styles.screen, { paddingTop: insets.top + 12 }]}>
-      {/* Header */}
-      <View style={styles.header}>
-        <TouchableOpacity
-          onPress={handleSkip}
-          accessibilityRole="button"
-          accessibilityLabel="Skip preferences"
-          style={styles.skipButton}
-          disabled={isSaving}
-        >
-          <Text style={styles.skipText}>Skip</Text>
-          <Ionicons color={AutumnColors.primary} name="chevron-forward" size={16} />
-        </TouchableOpacity>
-      </View>
+      <View style={styles.header} />
 
       {/* Scrollable content */}
       <ScrollView
@@ -101,8 +87,8 @@ export default function PreferencesScreen() {
           onPress={handleContinue}
           accessibilityRole="button"
           accessibilityLabel="Continue"
-          style={styles.continueButton}
-          disabled={isSaving}
+          style={[styles.continueButton, !canContinue && styles.continueButtonDisabled]}
+          disabled={!canContinue}
         >
           {isSaving ? (
             <ActivityIndicator color="#FFFFFF" />
@@ -215,5 +201,8 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
     color: '#FFFFFF',
+  },
+  continueButtonDisabled: {
+    opacity: 0.45,
   },
 });

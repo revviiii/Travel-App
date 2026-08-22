@@ -9,7 +9,7 @@ from app.api.dependencies import (
     get_maps_rate_limiter,
 )
 from app.main import app
-from app.schemas.google_maps import NearbySearchQuery, RouteQuery
+from app.schemas.google_maps import NearbySearchQuery, RouteQuery, TextPlaceSearchRequest
 from app.schemas.profile import CurrentUser
 from app.services.rate_limit import RateLimitExceededError
 
@@ -18,6 +18,7 @@ USER_ID = UUID("6f7ce5df-ef53-46d4-a6f9-43ebf9b57b9a")
 
 class FakePlacesClient:
     query: NearbySearchQuery | None = None
+    text_query: TextPlaceSearchRequest | None = None
 
     async def search_nearby(self, query: NearbySearchQuery) -> dict:
         self.query = query
@@ -29,6 +30,21 @@ class FakePlacesClient:
                     "formattedAddress": "Manila, Metro Manila",
                     "location": {"latitude": 14.5869, "longitude": 120.9816},
                     "primaryType": "museum",
+                }
+            ]
+        }
+
+    async def search_text(self, query: TextPlaceSearchRequest) -> dict:
+        self.text_query = query
+        return {
+            "places": [
+                {
+                    "id": "ChIJ-tokyo",
+                    "displayName": {"text": "Tokyo"},
+                    "formattedAddress": "Tokyo, Japan",
+                    "location": {"latitude": 35.6764, "longitude": 139.65},
+                    "primaryType": "locality",
+                    "photos": [{"name": "places/ChIJ-tokyo/photos/photo-1"}],
                 }
             ]
         }
@@ -97,6 +113,7 @@ def test_nearby_places_maps_preferences_and_normalizes_markers() -> None:
         "location": {"latitude": 14.5869, "longitude": 120.9816},
         "primary_type": "museum",
         "rating": None,
+        "photo_name": None,
     }
     assert fake_places.query is not None
     assert fake_places.query.included_types == [
@@ -106,6 +123,30 @@ def test_nearby_places_maps_preferences_and_normalizes_markers() -> None:
         "restaurant",
         "cafe",
     ]
+
+
+def test_text_search_resolves_a_remote_destination() -> None:
+    fake_places = FakePlacesClient()
+    app.dependency_overrides[get_current_user] = override_authenticated_user
+    app.dependency_overrides[get_google_places_client] = lambda: fake_places
+
+    with TestClient(app) as client:
+        response = client.post(
+            "/api/v1/maps/places/search",
+            json={"query": "Tokyo, Japan", "max_result_count": 1},
+        )
+
+    app.dependency_overrides.clear()
+    assert response.status_code == 200
+    assert response.json()["places"][0]["location"] == {
+        "latitude": 35.6764,
+        "longitude": 139.65,
+    }
+    assert response.json()["places"][0]["photo_name"] == (
+        "places/ChIJ-tokyo/photos/photo-1"
+    )
+    assert fake_places.text_query is not None
+    assert fake_places.text_query.query == "Tokyo, Japan"
 
 
 def test_compute_route_normalizes_polyline_distance_and_duration() -> None:

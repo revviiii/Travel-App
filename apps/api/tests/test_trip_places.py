@@ -146,6 +146,7 @@ def test_save_and_list_trip_places() -> None:
         "location": {"latitude": 14.5869, "longitude": 120.9816},
         "primary_type": "museum",
         "rating": None,
+        "photo_name": "places/google-place-123/photos/photo-1",
         "scheduled_date": "2026-08-22",
         "scheduled_time": "09:00:00",
         "duration_minutes": 120,

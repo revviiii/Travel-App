@@ -20,7 +20,7 @@ TRIP_PLACE_FIELDS = (
 )
 PLACE_FIELDS = (
     "id,google_place_id,name,address,latitude,longitude,primary_type,rating,"
-    "google_data_refreshed_at"
+    "photo_name,google_data_refreshed_at"
 )
 ITINERARY_FIELDS = (
     "id,trip_id,created_by,title,summary,generation_method,start_date,end_date,"
@@ -368,6 +368,7 @@ class SupabaseClient:
                 "new_longitude": location["longitude"],
                 "new_primary_type": values.get("primary_type"),
                 "new_rating": values.get("rating"),
+                "new_photo_name": values.get("photo_name"),
                 "new_scheduled_date": values["scheduled_date"],
                 "new_scheduled_time": values["scheduled_time"],
                 "new_duration_minutes": values["duration_minutes"],

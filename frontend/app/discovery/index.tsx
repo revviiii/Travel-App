@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -15,7 +15,9 @@ import {
 import DateTimePicker, {
   type DateTimePickerEvent,
 } from '@react-native-community/datetimepicker';
+import { Ionicons } from '@expo/vector-icons';
 import * as Calendar from 'expo-calendar';
+import { Image } from 'expo-image';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import MapView, { Marker, Polyline } from 'react-native-maps';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -41,12 +43,14 @@ import {
   getTravelGoals,
   getTripPlaces,
   getTrips,
+  getPlacePhotoUrl,
   type PlaceMarker,
   type PreferenceKey,
   type SavedTripPlace,
   type TripSummary,
   savePlaceToTrip,
   searchNearbyPlaces,
+  searchPlacesByText,
   setTripPlaceVote,
 } from '@/lib/api';
 import { decodeGooglePolyline } from '@/lib/polyline';
@@ -93,6 +97,7 @@ function formatScheduledTime(value: string): string {
 export default function DiscoveryScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const mapRef = useRef<MapView>(null);
   const { destination, tripId, section } = useLocalSearchParams<{
     destination?: string;
     tripId?: string;
@@ -100,6 +105,11 @@ export default function DiscoveryScreen() {
   }>();
   const { selectedPreferences } = usePreferences();
   const isGroupMode = Boolean(tripId);
+  const initialDestination = destination?.trim() || 'Manila';
+  const [destinationInput, setDestinationInput] = useState(initialDestination);
+  const [committedDestination, setCommittedDestination] = useState(initialDestination);
+  const [mapCenter, setMapCenter] = useState(MANILA_CENTER);
+  const [photoAccessToken, setPhotoAccessToken] = useState<string | null>(null);
 
   const [activeTab, setActiveTab] = useState<DiscoverySection>(
     section === 'itinerary' || section === 'goals' ? section : 'preferences',
@@ -150,6 +160,12 @@ export default function DiscoveryScreen() {
   const filterQuery = activeFilterOrder.slice().sort().join(',');
 
   useEffect(() => {
+    void supabase.auth.getSession().then(({ data }) => {
+      setPhotoAccessToken(data.session?.access_token ?? null);
+    });
+  }, []);
+
+  useEffect(() => {
     let isCurrent = true;
 
     async function loadMapData() {
@@ -162,7 +178,25 @@ export default function DiscoveryScreen() {
         const preferenceKeys = filterQuery
           .split(',')
           .filter(Boolean) as PreferenceKey[];
-        const nearby = await searchNearbyPlaces(MANILA_CENTER, preferenceKeys);
+        let center = MANILA_CENTER;
+        const destinationResult = await searchPlacesByText(committedDestination);
+        const destinationPlace = destinationResult.places[0];
+        if (!destinationPlace) {
+          throw new Error(`No destination matched “${committedDestination}”. Try a city or country.`);
+        }
+        center = destinationPlace.location;
+
+        if (!isCurrent) {
+          return;
+        }
+
+        setMapCenter(center);
+        mapRef.current?.animateToRegion(
+          { ...center, latitudeDelta: 0.18, longitudeDelta: 0.18 },
+          600,
+        );
+
+        const nearby = await searchNearbyPlaces(center, preferenceKeys);
 
         if (!isCurrent) {
           return;
@@ -172,7 +206,7 @@ export default function DiscoveryScreen() {
 
         const firstPlace = nearby.places[0];
         if (firstPlace) {
-          const route = await computeRoute(MANILA_CENTER, firstPlace.location);
+          const route = await computeRoute(center, firstPlace.location);
 
           if (!isCurrent) {
             return;
@@ -202,7 +236,17 @@ export default function DiscoveryScreen() {
     return () => {
       isCurrent = false;
     };
-  }, [filterQuery, reloadToken]);
+  }, [committedDestination, filterQuery, reloadToken]);
+
+  const handleDestinationSubmit = useCallback(() => {
+    const nextDestination = destinationInput.trim();
+    if (nextDestination.length < 2) {
+      Alert.alert('Enter a destination', 'Type a city, country, or landmark first.');
+      return;
+    }
+    setCommittedDestination(nextDestination);
+    setReloadToken((value) => value + 1);
+  }, [destinationInput]);
 
   useEffect(() => {
     let isCurrent = true;
@@ -634,14 +678,19 @@ export default function DiscoveryScreen() {
     <View style={styles.screen}>
       <View style={styles.mapArea}>
         <MapView
+          ref={mapRef}
           initialRegion={{
-            ...MANILA_CENTER,
+            ...mapCenter,
             latitudeDelta: 0.12,
             longitudeDelta: 0.12,
           }}
           style={StyleSheet.absoluteFillObject}
         >
-          <Marker coordinate={MANILA_CENTER} pinColor={AutumnColors.primary} title="Manila" />
+          <Marker
+            coordinate={mapCenter}
+            pinColor={AutumnColors.primary}
+            title={committedDestination}
+          />
           {places.map((place) => (
             <Marker
               coordinate={place.location}
@@ -672,10 +721,21 @@ export default function DiscoveryScreen() {
           <View style={styles.searchPill}>
             <TextInput
               style={styles.searchInput}
-              value={destination || 'Manila'}
-              editable={false}
+              value={destinationInput}
+              onChangeText={setDestinationInput}
+              onSubmitEditing={handleDestinationSubmit}
+              returnKeyType="search"
+              selectTextOnFocus
               accessibilityLabel="Destination"
             />
+            <TouchableOpacity
+              accessibilityLabel="Search destination"
+              accessibilityRole="button"
+              onPress={handleDestinationSubmit}
+              style={styles.destinationSearchButton}
+            >
+              <Ionicons color={AutumnColors.primary} name="search" size={18} />
+            </TouchableOpacity>
           </View>
         </View>
 
@@ -737,8 +797,7 @@ export default function DiscoveryScreen() {
                 accessibilityLabel="Open filter selection"
                 style={styles.filterButton}
               >
-                {/* TODO: Replace with final Figma filter SVG icon */}
-                <View style={styles.filterIconPlaceholder} />
+                <Ionicons color={AutumnColors.primary} name="options-outline" size={19} />
               </TouchableOpacity>
               <ScrollView
                 horizontal
@@ -767,6 +826,12 @@ export default function DiscoveryScreen() {
                   location={item.address ?? 'Address unavailable'}
                   rating={item.rating}
                   status="Live Google result"
+                  photoUri={item.photo_name ? getPlacePhotoUrl(item.photo_name) : undefined}
+                  photoHeaders={
+                    photoAccessToken
+                      ? { Authorization: `Bearer ${photoAccessToken}` }
+                      : undefined
+                  }
                   actionLabel={`Save ${item.name} to a group`}
                   onActionPress={() => openSavePicker(item)}
                 />
@@ -904,15 +969,35 @@ export default function DiscoveryScreen() {
                             : styles.pendingCard,
                         ]}
                       >
-                        <Text style={styles.timelinePlaceName}>{item.name}</Text>
-                        <Text style={styles.timelinePlaceType}>
-                          {formatPlaceType(item.primary_type)} · {item.duration_minutes} min
-                        </Text>
-                        <Text style={styles.timelineVoteStatus}>
-                          {item.is_confirmed
-                            ? 'Confirmed · ready for calendar'
-                            : `${item.vote_count}/${item.required_vote_count} group votes`}
-                        </Text>
+                        <View style={styles.timelineCardRow}>
+                          {item.photo_name ? (
+                            <Image
+                              contentFit="cover"
+                              source={{
+                                uri: getPlacePhotoUrl(item.photo_name, 320),
+                                headers: photoAccessToken
+                                  ? { Authorization: `Bearer ${photoAccessToken}` }
+                                  : undefined,
+                              }}
+                              style={styles.timelineImage}
+                            />
+                          ) : (
+                            <View style={styles.timelineImagePlaceholder}>
+                              <Ionicons color={AutumnColors.body} name="image-outline" size={22} />
+                            </View>
+                          )}
+                          <View style={styles.timelineCardCopy}>
+                            <Text style={styles.timelinePlaceName}>{item.name}</Text>
+                            <Text style={styles.timelinePlaceType}>
+                              {formatPlaceType(item.primary_type)} · {item.duration_minutes} min
+                            </Text>
+                            <Text style={styles.timelineVoteStatus}>
+                              {item.is_confirmed
+                                ? 'Confirmed · ready for calendar'
+                                : `${item.vote_count}/${item.required_vote_count} group votes`}
+                            </Text>
+                          </View>
+                        </View>
                         {item.voting_enabled ? (
                           <TouchableOpacity
                             accessibilityRole="button"
@@ -1267,13 +1352,22 @@ const styles = StyleSheet.create({
     height: 36,
     borderRadius: 18,
     backgroundColor: 'rgba(255,255,255,0.95)',
-    justifyContent: 'center',
+    flexDirection: 'row',
+    alignItems: 'center',
     paddingHorizontal: 14,
   },
   searchInput: {
+    flex: 1,
     fontSize: 13,
     color: AutumnColors.chipText,
     padding: 0,
+  },
+  destinationSearchButton: {
+    width: 30,
+    height: 30,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: -8,
   },
   mapStatus: {
     paddingHorizontal: 16,
@@ -1328,7 +1422,7 @@ const styles = StyleSheet.create({
     marginBottom: 14,
   },
   preferencesContent: {
-    flexShrink: 1,
+    flex: 1,
   },
   savedPlacesContent: {
     flex: 1,
@@ -1435,6 +1529,27 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     padding: 12,
     marginBottom: 12,
+  },
+  timelineCardRow: {
+    flexDirection: 'row',
+    gap: 10,
+  },
+  timelineImage: {
+    width: 54,
+    height: 54,
+    borderRadius: 9,
+    backgroundColor: AutumnColors.chipBackground,
+  },
+  timelineImagePlaceholder: {
+    width: 54,
+    height: 54,
+    borderRadius: 9,
+    backgroundColor: AutumnColors.chipBackground,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  timelineCardCopy: {
+    flex: 1,
   },
   confirmedCard: {
     borderColor: AutumnColors.autumnAccent,
@@ -1602,12 +1717,6 @@ const styles = StyleSheet.create({
     borderColor: AutumnColors.chipBorder,
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  filterIconPlaceholder: {
-    width: 16,
-    height: 16,
-    borderRadius: 4,
-    backgroundColor: AutumnColors.chipBorder,
   },
   filterChips: {
     gap: 10,

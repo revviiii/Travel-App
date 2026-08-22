@@ -29,6 +29,7 @@ export type PlaceMarker = {
   location: Coordinates;
   primary_type: string | null;
   rating: number | null;
+  photo_name: string | null;
 };
 
 type NearbyPlacesResponse = {
@@ -130,6 +131,7 @@ export type SavedTripPlace = {
   location: Coordinates;
   primary_type: string | null;
   rating: number | null;
+  photo_name: string | null;
   suggested_by: string;
   scheduled_date: string;
   scheduled_time: string;
@@ -227,6 +229,24 @@ export function searchNearbyPlaces(
       rank_preference: 'POPULARITY',
     },
   });
+}
+
+export function searchPlacesByText(query: string): Promise<{ places: PlaceMarker[] }> {
+  return authenticatedRequest('/api/v1/maps/places/search', {
+    method: 'POST',
+    body: {
+      query,
+      max_result_count: 5,
+    },
+  });
+}
+
+export function getPlacePhotoUrl(photoName: string, maxWidthPx = 480): string {
+  const query = new URLSearchParams({
+    photo_name: photoName,
+    max_width_px: String(maxWidthPx),
+  });
+  return `${apiUrl}/api/v1/maps/places/photo?${query.toString()}`;
 }
 
 export function computeRoute(
@@ -388,6 +408,7 @@ export function savePlaceToTrip(
         location: place.location,
         primary_type: place.primary_type,
         rating: place.rating,
+        photo_name: place.photo_name,
         scheduled_date: schedule.scheduledDate,
         scheduled_time: schedule.scheduledTime,
         duration_minutes: schedule.durationMinutes ?? 120,

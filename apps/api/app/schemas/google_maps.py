@@ -40,6 +40,11 @@ class NearbyPlacesRequest(BaseModel):
     rank_preference: Literal["POPULARITY", "DISTANCE"] = "POPULARITY"
 
 
+class TextPlaceSearchRequest(BaseModel):
+    query: str = Field(min_length=2, max_length=200)
+    max_result_count: int = Field(default=5, ge=1, le=10)
+
+
 class PlaceMarker(BaseModel):
     place_id: str
     name: str
@@ -47,11 +52,17 @@ class PlaceMarker(BaseModel):
     location: Coordinates
     primary_type: str | None = None
     rating: float | None = None
+    photo_name: str | None = None
 
 
 class NearbyPlacesResponse(BaseModel):
     center: Coordinates
     radius_meters: float
+    places: list[PlaceMarker]
+    provider: Literal["google"] = "google"
+
+
+class TextPlaceSearchResponse(BaseModel):
     places: list[PlaceMarker]
     provider: Literal["google"] = "google"
 
