@@ -1,6 +1,7 @@
 import { makeRedirectUri } from 'expo-auth-session';
 import * as QueryParams from 'expo-auth-session/build/QueryParams';
 import * as WebBrowser from 'expo-web-browser';
+import type { Session } from '@supabase/supabase-js';
 import { supabase } from '@/lib/supabase';
 
 export type SocialAuthProvider = 'google' | 'facebook' | 'apple';
@@ -11,6 +12,39 @@ export const socialAuthRedirectUrl = makeRedirectUri({
   scheme: 'frontend',
   path: 'auth/callback',
 });
+
+export async function createSessionFromUrl(url: string): Promise<Session> {
+  const { params, errorCode } = QueryParams.getQueryParams(url);
+  const providerError = params.error_description ?? params.error;
+
+  if (errorCode || providerError) {
+    throw new Error(String(providerError ?? errorCode));
+  }
+
+  const code = params.code;
+  if (typeof code === 'string' && code.length > 0) {
+    const { data, error } = await supabase.auth.exchangeCodeForSession(code);
+    if (error) throw error;
+    if (!data.session) throw new Error('Travel App could not create your sign-in session.');
+    return data.session;
+  }
+
+  const accessToken = params.access_token;
+  const refreshToken = params.refresh_token;
+  if (typeof accessToken !== 'string' || typeof refreshToken !== 'string') {
+    const { data } = await supabase.auth.getSession();
+    if (data.session) return data.session;
+    throw new Error('Travel App did not receive a complete sign-in session.');
+  }
+
+  const { data, error } = await supabase.auth.setSession({
+    access_token: accessToken,
+    refresh_token: refreshToken,
+  });
+  if (error) throw error;
+  if (!data.session) throw new Error('Travel App could not save your sign-in session.');
+  return data.session;
+}
 
 export async function signInWithSocialProvider(
   provider: SocialAuthProvider,
@@ -37,20 +71,5 @@ export async function signInWithSocialProvider(
     throw new Error('The sign-in window did not complete successfully.');
   }
 
-  const { params, errorCode } = QueryParams.getQueryParams(browserResult.url);
-  if (errorCode) {
-    throw new Error(String(params.error_description ?? errorCode));
-  }
-
-  const accessToken = params.access_token;
-  const refreshToken = params.refresh_token;
-  if (typeof accessToken !== 'string' || typeof refreshToken !== 'string') {
-    throw new Error('The provider returned an incomplete Supabase session.');
-  }
-
-  const { error: sessionError } = await supabase.auth.setSession({
-    access_token: accessToken,
-    refresh_token: refreshToken,
-  });
-  if (sessionError) throw sessionError;
+  await createSessionFromUrl(browserResult.url);
 }
