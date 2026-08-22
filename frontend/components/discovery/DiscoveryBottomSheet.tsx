@@ -102,7 +102,7 @@ export function DiscoveryBottomSheet({ children }: DiscoveryBottomSheetProps) {
     });
 
   const animatedStyle = useAnimatedStyle(() => ({
-    transform: [{ translateY: translateY.value }],
+    height: SCREEN_HEIGHT - translateY.value,
   }));
 
   return (
@@ -127,7 +127,7 @@ const styles = StyleSheet.create({
     position: 'absolute',
     left: 0,
     right: 0,
-    height: SCREEN_HEIGHT,
+    bottom: 0,
     backgroundColor: AutumnColors.background,
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,

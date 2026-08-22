@@ -8,6 +8,7 @@ from app.schemas.google_maps import (
     PlaceMarker,
     PreferenceKey,
     RouteLeg,
+    TextPlaceSearchResponse,
 )
 
 PREFERENCE_PLACE_TYPES: dict[PreferenceKey, tuple[str, ...]] = {
@@ -56,6 +57,10 @@ def normalize_places(
         display_name = place.get("displayName", {})
         name = display_name.get("text") if isinstance(display_name, dict) else None
 
+        photos = place.get("photos")
+        first_photo = photos[0] if isinstance(photos, list) and photos else None
+        photo_name = first_photo.get("name") if isinstance(first_photo, dict) else None
+
         markers.append(
             PlaceMarker(
                 place_id=place_id,
@@ -64,6 +69,7 @@ def normalize_places(
                 location=Coordinates.model_validate(location),
                 primary_type=place.get("primaryType"),
                 rating=place.get("rating"),
+                photo_name=photo_name if isinstance(photo_name, str) else None,
             )
         )
 
@@ -72,6 +78,11 @@ def normalize_places(
         radius_meters=radius_meters,
         places=markers,
     )
+
+
+def normalize_text_places(payload: dict[str, Any]) -> TextPlaceSearchResponse:
+    normalized = normalize_places(payload, Coordinates(latitude=0, longitude=0), 0)
+    return TextPlaceSearchResponse(places=normalized.places)
 
 
 def google_duration_seconds(value: object) -> int:

@@ -1,7 +1,7 @@
 from typing import Annotated, NoReturn
 
 import httpx
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 
 from app.api.dependencies import (
     get_current_user,
@@ -18,11 +18,14 @@ from app.schemas.google_maps import (
     NearbyPlacesResponse,
     NearbySearchQuery,
     RouteQuery,
+    TextPlaceSearchRequest,
+    TextPlaceSearchResponse,
 )
 from app.schemas.profile import CurrentUser
 from app.services.google_maps import (
     normalize_places,
     normalize_route,
+    normalize_text_places,
     place_types_for_preferences,
 )
 from app.services.rate_limit import RateLimitExceededError, SlidingWindowRateLimiter
@@ -87,6 +90,53 @@ async def search_nearby_places(
         raise_google_api_error(exc)
 
     return normalize_places(payload, request.center, request.radius_meters)
+
+
+@router.post("/places/search", response_model=TextPlaceSearchResponse)
+async def search_places_by_text(
+    request: TextPlaceSearchRequest,
+    user: Annotated[CurrentUser, Depends(get_current_user)],
+    google_places: Annotated[GooglePlacesClient, Depends(get_google_places_client)],
+    limiter: Annotated[SlidingWindowRateLimiter, Depends(get_maps_rate_limiter)],
+    settings: Annotated[Settings, Depends(get_settings)],
+) -> TextPlaceSearchResponse:
+    await enforce_provider_limit(
+        limiter,
+        user,
+        "google-places",
+        settings.google_places_requests_per_minute,
+    )
+    try:
+        payload = await google_places.search_text(request)
+    except httpx.HTTPError as exc:
+        raise_google_api_error(exc)
+    return normalize_text_places(payload)
+
+
+@router.get("/places/photo")
+async def get_place_photo(
+    user: Annotated[CurrentUser, Depends(get_current_user)],
+    google_places: Annotated[GooglePlacesClient, Depends(get_google_places_client)],
+    limiter: Annotated[SlidingWindowRateLimiter, Depends(get_maps_rate_limiter)],
+    settings: Annotated[Settings, Depends(get_settings)],
+    photo_name: Annotated[str, Query(pattern=r"^places/[^/]+/photos/[^/]+$")],
+    max_width_px: Annotated[int, Query(ge=100, le=1200)] = 480,
+) -> Response:
+    await enforce_provider_limit(
+        limiter,
+        user,
+        "google-place-photos",
+        settings.google_places_requests_per_minute,
+    )
+    try:
+        photo = await google_places.fetch_photo(photo_name, max_width_px)
+    except httpx.HTTPError as exc:
+        raise_google_api_error(exc)
+    return Response(
+        content=photo.content,
+        media_type=photo.headers.get("content-type", "image/jpeg"),
+        headers={"Cache-Control": "public, max-age=86400"},
+    )
 
 
 @router.post("/routes/compute", response_model=ComputedRouteResponse)

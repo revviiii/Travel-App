@@ -14,13 +14,16 @@ TRIP_FIELDS = (
     "start_date,end_date,budget,status,created_at,updated_at"
 )
 TRAVEL_GOAL_FIELDS = "id,user_id,goal_text,created_at"
+TRAVEL_TRACK_FIELDS = (
+    "id,user_id,name,started_at,ended_at,duration_seconds,distance_meters,path,created_at"
+)
 TRIP_PLACE_FIELDS = (
     "id,trip_id,place_id,suggested_by,scheduled_date,scheduled_time,duration_minutes,"
     "voting_enabled,leader_finalized_at,leader_finalized_by,created_at"
 )
 PLACE_FIELDS = (
     "id,google_place_id,name,address,latitude,longitude,primary_type,rating,"
-    "google_data_refreshed_at"
+    "photo_name,google_data_refreshed_at"
 )
 ITINERARY_FIELDS = (
     "id,trip_id,created_by,title,summary,generation_method,start_date,end_date,"
@@ -181,6 +184,33 @@ class SupabaseClient:
         )
         if not rows:
             raise SupabaseResourceNotFoundError("Travel goal was not found")
+
+    async def list_travel_tracks(self, user_id: UUID) -> list[Mapping[str, object]]:
+        return await self._request_rows(
+            "GET",
+            "/rest/v1/travel_tracks",
+            params={
+                "user_id": f"eq.{user_id}",
+                "select": TRAVEL_TRACK_FIELDS,
+                "order": "created_at.desc",
+            },
+        )
+
+    async def create_travel_track(
+        self,
+        user_id: UUID,
+        values: Mapping[str, object],
+    ) -> Mapping[str, object]:
+        rows = await self._request_rows(
+            "POST",
+            "/rest/v1/travel_tracks",
+            params={"select": TRAVEL_TRACK_FIELDS},
+            json={"user_id": str(user_id)} | dict(values),
+            headers={"Prefer": "return=representation"},
+        )
+        if not rows:
+            raise SupabaseApiError("Travel track was not created")
+        return rows[0]
 
     async def list_group_goals(self, trip_id: UUID) -> list[Mapping[str, object]]:
         return await self._request_rows(
@@ -368,6 +398,7 @@ class SupabaseClient:
                 "new_longitude": location["longitude"],
                 "new_primary_type": values.get("primary_type"),
                 "new_rating": values.get("rating"),
+                "new_photo_name": values.get("photo_name"),
                 "new_scheduled_date": values["scheduled_date"],
                 "new_scheduled_time": values["scheduled_time"],
                 "new_duration_minutes": values["duration_minutes"],

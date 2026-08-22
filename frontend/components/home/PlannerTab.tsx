@@ -1,4 +1,5 @@
-import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
+import { StyleSheet, Text, TouchableOpacity } from 'react-native';
 import { AutumnColors } from '@/constants/colors';
 
 interface PlannerTabProps {
@@ -12,6 +13,14 @@ interface PlannerTabProps {
  * Displays an icon placeholder and label. Active state uses olive green.
  */
 export function PlannerTab({ label, active, onPress }: PlannerTabProps) {
+  const iconName = label.toLowerCase().includes('group')
+    ? 'people-outline'
+    : label.toLowerCase().includes('itinerary')
+      ? 'map-outline'
+      : label.toLowerCase().includes('goal')
+        ? 'flag-outline'
+        : 'options-outline';
+
   return (
     <TouchableOpacity
       activeOpacity={0.7}
@@ -21,8 +30,11 @@ export function PlannerTab({ label, active, onPress }: PlannerTabProps) {
       accessibilityLabel={label}
       style={[styles.tab, active ? styles.tabActive : styles.tabInactive]}
     >
-      {/* TODO: Replace with final Figma SVG icon */}
-      <View style={[styles.iconPlaceholder, active && styles.iconActive]} />
+      <Ionicons
+        color={active ? AutumnColors.selectedTabText : AutumnColors.chipText}
+        name={iconName}
+        size={18}
+      />
       <Text style={[styles.label, active && styles.labelActive]}>{label}</Text>
     </TouchableOpacity>
   );
@@ -48,15 +60,6 @@ const styles = StyleSheet.create({
     backgroundColor: AutumnColors.secondaryAccent,
     borderWidth: 1,
     borderColor: AutumnColors.secondaryAccent,
-  },
-  iconPlaceholder: {
-    width: 18,
-    height: 18,
-    borderRadius: 4,
-    backgroundColor: AutumnColors.chipBorder,
-  },
-  iconActive: {
-    backgroundColor: 'rgba(255,255,255,0.5)',
   },
   label: {
     fontSize: 13,

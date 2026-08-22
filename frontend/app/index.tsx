@@ -4,6 +4,8 @@ import { Image } from 'expo-image';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { AutumnColors } from '@/constants/colors';
+import { getMyProfile } from '@/lib/api';
+import { supabase } from '@/lib/supabase';
 
 const appLogo = require('@/assets/images/app-logo.svg');
 
@@ -15,15 +17,33 @@ export default function StartingScreen() {
   const insets = useSafeAreaInsets();
 
   useEffect(() => {
-    // TODO: Check session/authentication state here before navigating.
-    // TODO: Check if onboarding has already been completed (AsyncStorage or similar).
-    // For now, always navigate to onboarding after a short delay.
+    let isCurrent = true;
 
-    const timeout = setTimeout(() => {
-      router.replace('/(onboarding)');
-    }, SPLASH_DELAY_MS);
+    async function chooseNextScreen() {
+      const minimumSplash = new Promise((resolve) => setTimeout(resolve, SPLASH_DELAY_MS));
+      const { data } = await supabase.auth.getSession();
+      await minimumSplash;
+      if (!isCurrent) return;
 
-    return () => clearTimeout(timeout);
+      if (!data.session) {
+        router.replace('/(onboarding)');
+        return;
+      }
+
+      try {
+        const profile = await getMyProfile();
+        if (isCurrent) {
+          router.replace(profile.onboarding_completed ? '/home' : '/preferences');
+        }
+      } catch {
+        if (isCurrent) router.replace('/Login');
+      }
+    }
+
+    void chooseNextScreen();
+    return () => {
+      isCurrent = false;
+    };
   }, [router]);
 
   return (

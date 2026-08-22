@@ -11,6 +11,7 @@ import {
   View,
 } from 'react-native';
 import { supabase } from '@/lib/supabase';
+import { signInWithSocialProvider, type SocialAuthProvider } from '@/lib/oauth';
 
 const userIcon = require('@/assets/images/User_ic.svg');
 const emailIcon = require('@/assets/images/Email_ic.svg');
@@ -18,7 +19,6 @@ const lockIcon = require('@/assets/images/Lock_ic.svg');
 const seeIcon = require('@/assets/images/See_ic.svg');
 const unseeIcon = require('@/assets/images/Unsee_ic.svg');
 const googleIcon = require('@/assets/images/Google_ic.svg');
-const facebookIcon = require('@/assets/images/Facebook_ic.svg');
 const appleIcon = require('@/assets/images/Apple_ic.svg');
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -26,7 +26,7 @@ const MINIMUM_PASSWORD_LENGTH = 8;
 
 type FieldName = 'fullName' | 'email' | 'password';
 type FormErrors = Partial<Record<FieldName, string>>;
-type SocialProvider = 'Google' | 'Facebook' | 'Apple';
+type SocialProvider = 'Google' | 'Apple';
 
 export default function SignupScreen() {
   const router = useRouter();
@@ -127,13 +127,21 @@ export default function SignupScreen() {
     router.replace('/preferences');
   };
 
-  const handleSocialSignup = (
+  const handleSocialSignup = async (
     provider: SocialProvider,
   ) => {
-    Alert.alert(
-      `${provider} sign up`,
-      `${provider} authentication will be connected here.`,
-    );
+    setIsLoading(true);
+    try {
+      await signInWithSocialProvider(provider.toLowerCase() as SocialAuthProvider);
+      router.replace('/preferences');
+    } catch (error) {
+      Alert.alert(
+        `Unable to sign up with ${provider}`,
+        error instanceof Error ? error.message : 'Please try again.',
+      );
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -297,16 +305,7 @@ export default function SignupScreen() {
             icon={googleIcon}
             label="Sign up with Google"
             onPress={() =>
-              handleSocialSignup('Google')
-            }
-          />
-
-          <SocialButton
-            icon={facebookIcon}
-            iconBackground="#1877F2"
-            label="Sign up with Facebook"
-            onPress={() =>
-              handleSocialSignup('Facebook')
+              void handleSocialSignup('Google')
             }
           />
 
@@ -314,7 +313,7 @@ export default function SignupScreen() {
             icon={appleIcon}
             label="Sign up with Apple"
             onPress={() =>
-              handleSocialSignup('Apple')
+              void handleSocialSignup('Apple')
             }
           />
         </View>

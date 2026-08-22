@@ -1,7 +1,7 @@
 [project]
 name = "travel-app-api"
 version = "0.1.0"
-description = "FastAPI backend for the Travel App hackathon project"
+description = "FastAPI backend for the Pinara hackathon project"
 requires-python = ">=3.12"
 dependencies = [
     "fastapi[standard]>=0.115",

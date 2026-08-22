@@ -1,3 +1,5 @@
+import { Ionicons } from '@expo/vector-icons';
+import { Image } from 'expo-image';
 import { Platform, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { AutumnColors } from '@/constants/colors';
 
@@ -9,8 +11,11 @@ interface PlaceCardProps {
   status: string;
   actionLabel?: string;
   onActionPress?: () => void;
+  onDetailsPress?: () => void;
   /** Optional callback for the circular Add-to-Itinerary action */
   onAddToItinerary?: () => void;
+  photoUri?: string;
+  photoHeaders?: Record<string, string>;
 }
 
 /**
@@ -26,7 +31,10 @@ export function PlaceCard({
   status,
   actionLabel = 'View details',
   onActionPress,
+  onDetailsPress,
   onAddToItinerary,
+  photoUri,
+  photoHeaders,
 }: PlaceCardProps) {
   const action = onActionPress ?? onAddToItinerary;
   const resolvedActionLabel =
@@ -34,8 +42,19 @@ export function PlaceCard({
 
   return (
     <View style={styles.card}>
-      {/* TODO: Replace with actual place image from API */}
-      <View style={styles.imagePlaceholder} />
+      {photoUri ? (
+        <Image
+          accessibilityLabel={`Photo of ${name}`}
+          contentFit="cover"
+          source={{ uri: photoUri, headers: photoHeaders }}
+          style={styles.placeImage}
+          transition={180}
+        />
+      ) : (
+        <View style={styles.imagePlaceholder}>
+          <Ionicons color={AutumnColors.chipBorder} name="image-outline" size={28} />
+        </View>
+      )}
 
       <View style={styles.content}>
         <View style={styles.categoryBadge}>
@@ -56,17 +75,26 @@ export function PlaceCard({
         </View>
       </View>
 
-      {/* TODO: Replace with final Figma link/share SVG icon */}
-      <TouchableOpacity
-        disabled={!action}
-        onPress={action}
-        style={styles.linkButton}
-        accessibilityRole="button"
-        accessibilityLabel={resolvedActionLabel}
-      >
-        {/* TODO: Replace with final Figma Add-to-Itinerary SVG */}
-        <View style={styles.linkIconPlaceholder} />
-      </TouchableOpacity>
+      <View style={styles.actionButtons}>
+        <TouchableOpacity
+          disabled={!onDetailsPress}
+          onPress={onDetailsPress}
+          style={styles.linkButton}
+          accessibilityRole="link"
+          accessibilityLabel={`Open ${name} in Google Maps`}
+        >
+          <Ionicons color={AutumnColors.primary} name="open-outline" size={18} />
+        </TouchableOpacity>
+        <TouchableOpacity
+          disabled={!action}
+          onPress={action}
+          style={styles.linkButton}
+          accessibilityRole="button"
+          accessibilityLabel={resolvedActionLabel}
+        >
+          <Ionicons color={AutumnColors.primary} name="add" size={20} />
+        </TouchableOpacity>
+      </View>
     </View>
   );
 }
@@ -98,6 +126,14 @@ const styles = StyleSheet.create({
     height: 64,
     borderRadius: 10,
     backgroundColor: AutumnColors.heading,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  placeImage: {
+    width: 64,
+    height: 64,
+    borderRadius: 10,
+    backgroundColor: AutumnColors.chipBackground,
   },
   content: {
     flex: 1,
@@ -152,10 +188,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  linkIconPlaceholder: {
-    width: 14,
-    height: 14,
-    borderRadius: 3,
-    backgroundColor: AutumnColors.chipBorder,
+  actionButtons: {
+    gap: 7,
   },
 });

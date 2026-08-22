@@ -1,4 +1,5 @@
-import { Platform, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
+import { Platform, StyleSheet, Text, TouchableOpacity } from 'react-native';
 import { AutumnColors } from '@/constants/colors';
 import { MemberAvatarStack } from '@/components/home/MemberAvatarStack';
 
@@ -33,8 +34,7 @@ export function GroupCard({ name, memberCount, onPress, onLongPress }: GroupCard
         {name}
       </Text>
 
-      {/* TODO: Replace with final Figma chevron/arrow SVG */}
-      <View style={styles.chevronPlaceholder} />
+      <Ionicons color={AutumnColors.body} name="chevron-forward" size={20} />
     </TouchableOpacity>
   );
 }
@@ -67,11 +67,5 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: '600',
     color: AutumnColors.heading,
-  },
-  chevronPlaceholder: {
-    width: 16,
-    height: 16,
-    borderRadius: 4,
-    backgroundColor: AutumnColors.chipBorder,
   },
 });

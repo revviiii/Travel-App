@@ -1,11 +1,12 @@
 import { Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
+import * as ImagePicker from 'expo-image-picker';
 import { router, type RelativePathString } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect, useState } from 'react';
 import { ActivityIndicator, Alert, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { getMyProfile } from '@/lib/api';
+import { getMyProfile, updateMyProfile } from '@/lib/api';
 import { supabase } from '@/lib/supabase';
 
 const personalInfoIcon = require('@/assets/images/User_dark_ic.svg');
@@ -18,7 +19,9 @@ export default function UserProfileScreen() {
 
   const [userName, setUserName] = useState('Traveler');
   const [userEmail, setUserEmail] = useState('');
+  const [userAvatarUrl, setUserAvatarUrl] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [isUpdatingAvatar, setIsUpdatingAvatar] = useState(false);
 
   useEffect(() => {
     let isCurrent = true;
@@ -26,7 +29,14 @@ export default function UserProfileScreen() {
       .then(([profile, sessionResult]) => {
         if (!isCurrent) return;
         setUserName(profile.full_name || 'Traveler');
-        setUserEmail(sessionResult.data.session?.user.email ?? '');
+        const sessionUser = sessionResult.data.session?.user;
+        setUserEmail(sessionUser?.email ?? '');
+        setUserAvatarUrl(
+          profile.avatar_url
+            ?? sessionUser?.user_metadata?.avatar_url
+            ?? sessionUser?.user_metadata?.picture
+            ?? null,
+        );
       })
       .catch((error) => {
         if (isCurrent) {
@@ -54,8 +64,80 @@ export default function UserProfileScreen() {
     router.replace('/home');
   };
 
+  const uploadAvatar = async (asset: ImagePicker.ImagePickerAsset) => {
+    setIsUpdatingAvatar(true);
+    try {
+      const { data: userResult, error: userError } = await supabase.auth.getUser();
+      if (userError) throw userError;
+      if (!userResult.user) throw new Error('Sign in again before changing your photo.');
+
+      const photoResponse = await fetch(asset.uri);
+      if (!photoResponse.ok) throw new Error('Pinara could not read the selected photo.');
+      const photoBytes = await photoResponse.arrayBuffer();
+      const contentType = asset.mimeType?.startsWith('image/') ? asset.mimeType : 'image/jpeg';
+      const extension = contentType === 'image/png' ? 'png' : 'jpg';
+      const storagePath = `${userResult.user.id}/avatar.${extension}`;
+
+      const { error: uploadError } = await supabase.storage
+        .from('avatars')
+        .upload(storagePath, photoBytes, {
+          cacheControl: '3600',
+          contentType,
+          upsert: true,
+        });
+      if (uploadError) throw uploadError;
+
+      const { data: publicUrlResult } = supabase.storage
+        .from('avatars')
+        .getPublicUrl(storagePath);
+      const avatarUrl = `${publicUrlResult.publicUrl}?v=${Date.now()}`;
+      await updateMyProfile({ avatar_url: avatarUrl });
+      setUserAvatarUrl(avatarUrl);
+      Alert.alert('Profile photo updated', 'Your new photo is now visible in Pinara.');
+    } catch (error) {
+      Alert.alert(
+        'Unable to update profile photo',
+        error instanceof Error ? error.message : 'Please try again.',
+      );
+    } finally {
+      setIsUpdatingAvatar(false);
+    }
+  };
+
+  const chooseAvatar = async (source: 'camera' | 'library') => {
+    if (source === 'camera') {
+      const permission = await ImagePicker.requestCameraPermissionsAsync();
+      if (!permission.granted) {
+        Alert.alert('Camera permission needed', 'Allow camera access to take a profile photo.');
+        return;
+      }
+    }
+
+    const result = source === 'camera'
+      ? await ImagePicker.launchCameraAsync({
+        allowsEditing: true,
+        aspect: [1, 1],
+        mediaTypes: ['images'],
+        quality: 0.75,
+      })
+      : await ImagePicker.launchImageLibraryAsync({
+        allowsEditing: true,
+        aspect: [1, 1],
+        mediaTypes: ['images'],
+        quality: 0.75,
+      });
+
+    if (!result.canceled && result.assets[0]) {
+      await uploadAvatar(result.assets[0]);
+    }
+  };
+
   const handleChangePhoto = () => {
-    Alert.alert('Profile photo', 'Photo selection will be connected here.');
+    Alert.alert('Change profile photo', 'Choose a photo source.', [
+      { text: 'Camera', onPress: () => void chooseAvatar('camera') },
+      { text: 'Photo library', onPress: () => void chooseAvatar('library') },
+      { text: 'Cancel', style: 'cancel' },
+    ]);
   };
 
   const handlePersonalInfo = () => {
@@ -101,15 +183,31 @@ export default function UserProfileScreen() {
 
           <View style={styles.profileSummary}>
             <View style={styles.avatarFrame}>
-              <View style={styles.avatarPlaceholder} />
+              {userAvatarUrl ? (
+                <Image
+                  accessibilityLabel={`${userName}'s profile photo`}
+                  contentFit="cover"
+                  source={{ uri: userAvatarUrl }}
+                  style={styles.avatarImage}
+                />
+              ) : (
+                <View style={styles.avatarPlaceholder}>
+                  <Ionicons color="#707586" name="person" size={26} />
+                </View>
+              )}
               <Pressable
                 accessibilityLabel="Change profile photo"
                 accessibilityRole="button"
+                disabled={isUpdatingAvatar}
                 hitSlop={6}
                 onPress={handleChangePhoto}
                 style={({ pressed }) => [styles.cameraButton, pressed && styles.controlPressed]}
               >
-                <Image contentFit="contain" source={cameraIcon} style={styles.cameraIcon} />
+                {isUpdatingAvatar ? (
+                  <ActivityIndicator color="#FFFFFF" size="small" />
+                ) : (
+                  <Image contentFit="contain" source={cameraIcon} style={styles.cameraIcon} />
+                )}
               </Pressable>
             </View>
 
@@ -215,6 +313,16 @@ const styles = StyleSheet.create({
     height: 64,
   },
   avatarPlaceholder: {
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    borderWidth: 1.15,
+    borderColor: '#8D91A1',
+    backgroundColor: '#D7D8DA',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  avatarImage: {
     width: 60,
     height: 60,
     borderRadius: 30,

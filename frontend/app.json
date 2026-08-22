@@ -1,7 +1,8 @@
 {
   "expo": {
-    "name": "Travel App",
+    "name": "Pinara",
     "slug": "travel-app",
+    "owner": "ramylsalazars-team",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
@@ -41,16 +42,36 @@
         }
       ],
       "@react-native-community/datetimepicker",
+      "expo-web-browser",
       [
         "expo-calendar",
         {
-          "calendarPermission": "Allow Travel App to add finalized itinerary places to your calendar."
+          "calendarPermission": "Allow Pinara to add finalized itinerary places to your calendar."
+        }
+      ],
+      [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "Allow Pinara to record and highlight the route you travel while tracking is active."
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Allow Pinara to choose a profile photo from your library.",
+          "cameraPermission": "Allow Pinara to take a profile photo.",
+          "microphonePermission": false
         }
       ]
     ],
     "experiments": {
       "typedRoutes": true,
       "reactCompiler": true
+    },
+    "extra": {
+      "eas": {
+        "projectId": "cd2015b3-1f8b-46b7-b28a-cf0b132b9f96"
+      }
     }
   }
 }

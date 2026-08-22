@@ -15,6 +15,7 @@ class TripPlaceCreate(BaseModel):
     location: Coordinates
     primary_type: str | None = Field(default=None, max_length=100)
     rating: float | None = Field(default=None, ge=0, le=5)
+    photo_name: str | None = Field(default=None, max_length=500)
     scheduled_date: date
     scheduled_time: time
     duration_minutes: int = Field(default=120, ge=15, le=720)
@@ -31,6 +32,7 @@ class TripPlaceResponse(BaseModel):
     location: Coordinates
     primary_type: str | None = None
     rating: float | None = None
+    photo_name: str | None = None
     suggested_by: UUID
     scheduled_date: date
     scheduled_time: time
