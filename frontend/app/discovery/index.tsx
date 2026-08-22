@@ -97,6 +97,44 @@ function formatScheduledTime(value: string): string {
   });
 }
 
+function ItineraryPlacePhoto({
+  accessToken,
+  name,
+  photoName,
+}: {
+  accessToken: string | null;
+  name: string;
+  photoName?: string | null;
+}) {
+  const [failed, setFailed] = useState(false);
+
+  useEffect(() => {
+    setFailed(false);
+  }, [accessToken, photoName]);
+
+  if (!photoName || !accessToken || failed) {
+    return (
+      <View style={styles.timelineImagePlaceholder}>
+        <Ionicons color={AutumnColors.body} name="image-outline" size={22} />
+      </View>
+    );
+  }
+
+  return (
+    <Image
+      accessibilityLabel={`Photo of ${name}`}
+      contentFit="cover"
+      onError={() => setFailed(true)}
+      source={{
+        uri: getPlacePhotoUrl(photoName, 320),
+        headers: { Authorization: `Bearer ${accessToken}` },
+      }}
+      style={styles.timelineImage}
+      transition={180}
+    />
+  );
+}
+
 export default function DiscoveryScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
@@ -118,9 +156,10 @@ export default function DiscoveryScreen() {
     section === 'itinerary' || section === 'goals' ? section : 'preferences',
   );
   const [showFilterPanel, setShowFilterPanel] = useState(false);
+  const [searchRadiusMeters, setSearchRadiusMeters] = useState(10_000);
   const [activeFilterOrder, setActiveFilterOrder] = useState<string[]>(() => {
     const initial = Array.from(selectedPreferences);
-    return initial.length > 0 ? initial.slice(0, 4) : ['food', 'culture'];
+    return initial.length > 0 ? initial : ['food', 'culture'];
   });
   const activeFilters = useMemo(() => new Set(activeFilterOrder), [activeFilterOrder]);
   const [places, setPlaces] = useState<PlaceMarker[]>([]);
@@ -134,6 +173,8 @@ export default function DiscoveryScreen() {
   const [trips, setTrips] = useState<TripSummary[]>([]);
   const [selectedTripId, setSelectedTripId] = useState<string | null>(tripId ?? null);
   const [savedPlaces, setSavedPlaces] = useState<SavedTripPlace[]>([]);
+  const [savedPlacePhotoNames, setSavedPlacePhotoNames] = useState<Record<string, string>>({});
+  const attemptedPhotoLookupsRef = useRef(new Set<string>());
   const [isLoadingSavedPlaces, setIsLoadingSavedPlaces] = useState(false);
   const [isFinalizingItinerary, setIsFinalizingItinerary] = useState(false);
   const [placeToSave, setPlaceToSave] = useState<PlaceMarker | null>(null);
@@ -179,7 +220,7 @@ export default function DiscoveryScreen() {
   );
 
   useEffect(() => {
-    const nextFilters = Array.from(selectedPreferences).slice(0, 4);
+    const nextFilters = Array.from(selectedPreferences);
     setActiveFilterOrder((current) => {
       if (
         current.length === nextFilters.length
@@ -195,6 +236,10 @@ export default function DiscoveryScreen() {
     void supabase.auth.getSession().then(({ data }) => {
       setPhotoAccessToken(data.session?.access_token ?? null);
     });
+    const { data: authListener } = supabase.auth.onAuthStateChange((_event, session) => {
+      setPhotoAccessToken(session?.access_token ?? null);
+    });
+    return () => authListener.subscription.unsubscribe();
   }, []);
 
   useEffect(() => {
@@ -228,7 +273,12 @@ export default function DiscoveryScreen() {
           600,
         );
 
-        const nearby = await searchNearbyPlaces(center, preferenceKeys);
+        const nearby = await searchNearbyPlaces(
+          center,
+          preferenceKeys,
+          searchRadiusMeters,
+          20,
+        );
 
         if (!isCurrent) {
           return;
@@ -268,7 +318,7 @@ export default function DiscoveryScreen() {
     return () => {
       isCurrent = false;
     };
-  }, [committedDestination, filterQuery, reloadToken]);
+  }, [committedDestination, filterQuery, reloadToken, searchRadiusMeters]);
 
   const handleDestinationSubmit = useCallback(() => {
     const nextDestination = destinationInput.trim();
@@ -317,10 +367,14 @@ export default function DiscoveryScreen() {
     async function loadSavedPlaces() {
       if (!selectedTripId) {
         setSavedPlaces([]);
+        setSavedPlacePhotoNames({});
+        attemptedPhotoLookupsRef.current.clear();
         return;
       }
 
       setIsLoadingSavedPlaces(true);
+      setSavedPlacePhotoNames({});
+      attemptedPhotoLookupsRef.current.clear();
       try {
         const saved = await getTripPlaces(selectedTripId);
         if (isCurrent) {
@@ -345,6 +399,66 @@ export default function DiscoveryScreen() {
       isCurrent = false;
     };
   }, [selectedTripId]);
+
+  useEffect(() => {
+    if (activeTab !== 'itinerary' || !photoAccessToken || savedPlaces.length === 0) return;
+    let isCurrent = true;
+
+    const nearbyPhotos = new Map(
+      places
+        .filter((place): place is PlaceMarker & { photo_name: string } => Boolean(place.photo_name))
+        .map((place) => [place.place_id, place.photo_name]),
+    );
+    const immediateUpdates: Record<string, string> = {};
+    const needsLookup: SavedTripPlace[] = [];
+
+    for (const place of savedPlaces) {
+      if (place.photo_name || attemptedPhotoLookupsRef.current.has(place.id)) continue;
+      const nearbyPhoto = nearbyPhotos.get(place.google_place_id);
+      if (nearbyPhoto) {
+        attemptedPhotoLookupsRef.current.add(place.id);
+        immediateUpdates[place.id] = nearbyPhoto;
+      } else if (needsLookup.length < 6) {
+        attemptedPhotoLookupsRef.current.add(place.id);
+        needsLookup.push(place);
+      }
+    }
+
+    if (Object.keys(immediateUpdates).length > 0) {
+      setSavedPlacePhotoNames((current) => ({ ...current, ...immediateUpdates }));
+    }
+
+    if (needsLookup.length > 0) {
+      void Promise.all(
+        needsLookup.map(async (place) => {
+          const query = [place.name, place.address ?? committedDestination]
+            .filter(Boolean)
+            .join(' ');
+          const result = await searchPlacesByText(query);
+          const match = result.places.find((candidate) => candidate.place_id === place.google_place_id)
+            ?? result.places[0];
+          return match?.photo_name ? ([place.id, match.photo_name] as const) : null;
+        }),
+      )
+        .then((entries) => {
+          if (!isCurrent) return;
+          const updates = Object.fromEntries(entries.filter((entry) => entry !== null));
+          setSavedPlacePhotoNames((current) => ({ ...current, ...updates }));
+        })
+        .catch(() => undefined);
+    }
+
+    return () => {
+      isCurrent = false;
+    };
+  }, [
+    activeTab,
+    committedDestination,
+    photoAccessToken,
+    places,
+    savedPlacePhotoNames,
+    savedPlaces,
+  ]);
 
   useEffect(() => {
     if (!selectedTripId) return;
@@ -441,10 +555,9 @@ export default function DiscoveryScreen() {
     setActiveFilterOrder((prev) => {
       if (prev.includes(id)) {
         return prev.filter((x) => x !== id);
-      } else if (prev.length < 4) {
+      } else {
         return [...prev, id];
       }
-      return prev;
     });
   };
 
@@ -458,11 +571,14 @@ export default function DiscoveryScreen() {
     setPlaceToSave(place);
   };
 
-  const openGoogleMapsPlace = async (place: PlaceMarker) => {
+  const openGoogleMapsPlace = async (place: PlaceMarker | SavedTripPlace) => {
     const query = `${place.location.latitude},${place.location.longitude}`;
+    const googlePlaceId = 'google_place_id' in place
+      ? place.google_place_id
+      : place.place_id;
     const googleMapsUrl =
       `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(query)}`
-      + `&query_place_id=${encodeURIComponent(place.place_id)}`;
+      + `&query_place_id=${encodeURIComponent(googlePlaceId)}`;
 
     try {
       await Linking.openURL(googleMapsUrl);
@@ -673,8 +789,9 @@ export default function DiscoveryScreen() {
     setShowFilterPanel(true);
   }, []);
 
-  const handleApplyFilters = useCallback((filters: Set<string>) => {
+  const handleApplyFilters = useCallback((filters: Set<string>, radiusMeters: number) => {
     setActiveFilterOrder(Array.from(filters));
+    setSearchRadiusMeters(radiusMeters);
     setShowFilterPanel(false);
   }, []);
 
@@ -731,6 +848,9 @@ export default function DiscoveryScreen() {
     ),
     [handleLongPressGoal],
   );
+
+  const savedPhotoName = (place: SavedTripPlace) =>
+    place.photo_name ?? savedPlacePhotoNames[place.id];
 
   return (
     <View style={styles.screen}>
@@ -857,11 +977,21 @@ export default function DiscoveryScreen() {
               >
                 <Ionicons color={AutumnColors.primary} name="options-outline" size={19} />
               </TouchableOpacity>
+              <TouchableOpacity
+                accessibilityLabel={`Search within ${searchRadiusMeters / 1000} kilometers`}
+                accessibilityRole="button"
+                onPress={handleOpenFilterPanel}
+                style={styles.radiusPill}
+              >
+                <Ionicons color={AutumnColors.primary} name="resize-outline" size={14} />
+                <Text style={styles.radiusPillText}>{searchRadiusMeters / 1000} km</Text>
+              </TouchableOpacity>
               <ScrollView
                 horizontal
                 showsHorizontalScrollIndicator={false}
                 contentContainerStyle={styles.filterChips}
                 nestedScrollEnabled
+                style={styles.filterScroll}
               >
                 {orderedCategories.map((cat) => (
                   <PreferenceFilterChip
@@ -884,7 +1014,11 @@ export default function DiscoveryScreen() {
                   location={item.address ?? 'Address unavailable'}
                   rating={item.rating}
                   status="Live Google result"
-                  photoUri={item.photo_name ? getPlacePhotoUrl(item.photo_name) : undefined}
+                  photoUri={
+                    item.photo_name && photoAccessToken
+                      ? getPlacePhotoUrl(item.photo_name)
+                      : undefined
+                  }
                   photoHeaders={
                     photoAccessToken
                       ? { Authorization: `Bearer ${photoAccessToken}` }
@@ -1029,22 +1163,11 @@ export default function DiscoveryScreen() {
                         ]}
                       >
                         <View style={styles.timelineCardRow}>
-                          {item.photo_name ? (
-                            <Image
-                              contentFit="cover"
-                              source={{
-                                uri: getPlacePhotoUrl(item.photo_name, 320),
-                                headers: photoAccessToken
-                                  ? { Authorization: `Bearer ${photoAccessToken}` }
-                                  : undefined,
-                              }}
-                              style={styles.timelineImage}
-                            />
-                          ) : (
-                            <View style={styles.timelineImagePlaceholder}>
-                              <Ionicons color={AutumnColors.body} name="image-outline" size={22} />
-                            </View>
-                          )}
+                          <ItineraryPlacePhoto
+                            accessToken={photoAccessToken}
+                            name={item.name}
+                            photoName={savedPhotoName(item)}
+                          />
                           <View style={styles.timelineCardCopy}>
                             <Text style={styles.timelinePlaceName}>{item.name}</Text>
                             <Text style={styles.timelinePlaceType}>
@@ -1055,6 +1178,15 @@ export default function DiscoveryScreen() {
                                 ? 'Confirmed · ready for calendar'
                                 : `${item.vote_count}/${item.required_vote_count} group votes`}
                             </Text>
+                            <TouchableOpacity
+                              accessibilityLabel={`Open ${item.name} in Google Maps`}
+                              accessibilityRole="link"
+                              onPress={() => void openGoogleMapsPlace(item)}
+                              style={styles.timelineGoogleMapsLink}
+                            >
+                              <Ionicons color={AutumnColors.primary} name="open-outline" size={12} />
+                              <Text style={styles.timelineGoogleMapsText}>View on Google Maps</Text>
+                            </TouchableOpacity>
                           </View>
                         </View>
                         {item.voting_enabled ? (
@@ -1143,6 +1275,7 @@ export default function DiscoveryScreen() {
       <DiscoveryFilterPanel
         visible={showFilterPanel}
         currentFilters={activeFilters}
+        currentRadiusMeters={searchRadiusMeters}
         onApply={handleApplyFilters}
         onCancel={handleCancelFilterPanel}
       />
@@ -1634,6 +1767,19 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     marginTop: 6,
   },
+  timelineGoogleMapsLink: {
+    alignSelf: 'flex-start',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    marginTop: 5,
+  },
+  timelineGoogleMapsText: {
+    color: AutumnColors.primary,
+    fontSize: 10,
+    fontWeight: '600',
+    textDecorationLine: 'underline',
+  },
   voteButton: {
     alignSelf: 'flex-end',
     borderRadius: 14,
@@ -1777,9 +1923,30 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
+  radiusPill: {
+    height: 36,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: AutumnColors.chipBorder,
+    backgroundColor: AutumnColors.chipBackground,
+    paddingHorizontal: 10,
+    marginLeft: 7,
+  },
+  radiusPillText: {
+    color: AutumnColors.primary,
+    fontSize: 11,
+    fontWeight: '700',
+  },
   filterChips: {
     gap: 10,
     paddingRight: 8,
+  },
+  filterScroll: {
+    flex: 1,
+    marginLeft: 7,
   },
   placeList: {
     paddingBottom: 4,

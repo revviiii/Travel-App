@@ -16,10 +16,12 @@ import { PreferenceChip } from '@/components/onboarding/PreferenceChip';
 import { usePreferences } from '@/contexts/PreferenceContext';
 import { replaceMyPreferences, updateMyProfile } from '@/lib/api';
 
+const REQUIRED_ONBOARDING_PREFERENCES = 4;
+
 export default function PreferencesScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { selectedPreferences, togglePreference, maxPreferences } = usePreferences();
+  const { selectedPreferences, togglePreference } = usePreferences();
   const [isSaving, setIsSaving] = useState(false);
 
   const saveAndContinue = async (preferenceKeys: string[]) => {
@@ -41,7 +43,22 @@ export default function PreferencesScreen() {
   };
 
   const handleContinue = () => void saveAndContinue([...selectedPreferences]);
-  const canContinue = selectedPreferences.size > 0 && !isSaving;
+  const canContinue =
+    selectedPreferences.size === REQUIRED_ONBOARDING_PREFERENCES && !isSaving;
+
+  const handleTogglePreference = (id: string) => {
+    if (
+      !selectedPreferences.has(id)
+      && selectedPreferences.size >= REQUIRED_ONBOARDING_PREFERENCES
+    ) {
+      Alert.alert(
+        'Four preferences selected',
+        'Remove one preference before choosing another.',
+      );
+      return;
+    }
+    togglePreference(id);
+  };
 
   return (
     <View style={[styles.screen, { paddingTop: insets.top + 12 }]}>
@@ -59,11 +76,11 @@ export default function PreferencesScreen() {
         <Text style={styles.description}>
           {'Share your travel preferences, and we\'ll craft your perfect trip.'}
         </Text>
-        <Text style={styles.selectionHint}>Choose up to {maxPreferences} interests</Text>
+        <Text style={styles.selectionHint}>Choose exactly four interests to continue</Text>
 
         {/* Selection counter */}
         <Text style={styles.counter}>
-          {selectedPreferences.size} / {maxPreferences} selected
+          {selectedPreferences.size} / {REQUIRED_ONBOARDING_PREFERENCES} selected
         </Text>
 
         {/* Preference chips — flex-wrap flow layout */}
@@ -74,7 +91,7 @@ export default function PreferencesScreen() {
               label={pref.label}
               preferenceId={pref.id}
               selected={selectedPreferences.has(pref.id)}
-              onPress={() => togglePreference(pref.id)}
+              onPress={() => handleTogglePreference(pref.id)}
             />
           ))}
         </View>

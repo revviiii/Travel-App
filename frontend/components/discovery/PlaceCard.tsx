@@ -1,5 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
+import { useEffect, useState } from 'react';
 import { Platform, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { AutumnColors } from '@/constants/colors';
 
@@ -36,19 +37,27 @@ export function PlaceCard({
   photoUri,
   photoHeaders,
 }: PlaceCardProps) {
+  const [photoFailed, setPhotoFailed] = useState(false);
   const action = onActionPress ?? onAddToItinerary;
   const resolvedActionLabel =
     actionLabel === 'View details' && onAddToItinerary ? 'Add to itinerary' : actionLabel;
 
+  useEffect(() => {
+    setPhotoFailed(false);
+  }, [photoUri, photoHeaders?.Authorization]);
+
+  const canLoadPhoto = Boolean(photoUri && photoHeaders?.Authorization && !photoFailed);
+
   return (
     <View style={styles.card}>
-      {photoUri ? (
+      {canLoadPhoto ? (
         <Image
           accessibilityLabel={`Photo of ${name}`}
           contentFit="cover"
-          source={{ uri: photoUri, headers: photoHeaders }}
+          source={{ uri: photoUri!, headers: photoHeaders }}
           style={styles.placeImage}
           transition={180}
+          onError={() => setPhotoFailed(true)}
         />
       ) : (
         <View style={styles.imagePlaceholder}>
@@ -73,18 +82,21 @@ export function PlaceCard({
           <Text style={styles.rating}>{rating === null ? 'Google' : rating.toFixed(1)}</Text>
           <Text style={styles.status}>{status}</Text>
         </View>
+
+        {onDetailsPress ? (
+          <TouchableOpacity
+            accessibilityLabel={`Open ${name} in Google Maps`}
+            accessibilityRole="link"
+            onPress={onDetailsPress}
+            style={styles.googleMapsLink}
+          >
+            <Ionicons color={AutumnColors.primary} name="open-outline" size={13} />
+            <Text style={styles.googleMapsLinkText}>View on Google Maps</Text>
+          </TouchableOpacity>
+        ) : null}
       </View>
 
       <View style={styles.actionButtons}>
-        <TouchableOpacity
-          disabled={!onDetailsPress}
-          onPress={onDetailsPress}
-          style={styles.linkButton}
-          accessibilityRole="link"
-          accessibilityLabel={`Open ${name} in Google Maps`}
-        >
-          <Ionicons color={AutumnColors.primary} name="open-outline" size={18} />
-        </TouchableOpacity>
         <TouchableOpacity
           disabled={!action}
           onPress={action}
@@ -167,6 +179,19 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 6,
     marginTop: 2,
+  },
+  googleMapsLink: {
+    alignSelf: 'flex-start',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    marginTop: 5,
+  },
+  googleMapsLinkText: {
+    color: AutumnColors.primary,
+    fontSize: 11,
+    fontWeight: '600',
+    textDecorationLine: 'underline',
   },
   rating: {
     fontSize: 12,

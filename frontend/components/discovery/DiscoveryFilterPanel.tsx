@@ -11,13 +11,14 @@ import { AutumnColors } from '@/constants/colors';
 import { PREFERENCE_CATEGORIES } from '@/constants/preferences';
 import { PreferenceChip } from '@/components/onboarding/PreferenceChip';
 
-const MAX_FILTERS = 4;
+const RADIUS_OPTIONS = [5_000, 10_000, 20_000] as const;
 
 interface DiscoveryFilterPanelProps {
   visible: boolean;
   /** Current active Discovery filters — used to initialize the temporary selection */
   currentFilters: Set<string>;
-  onApply: (filters: Set<string>) => void;
+  currentRadiusMeters: number;
+  onApply: (filters: Set<string>, radiusMeters: number) => void;
   onCancel: () => void;
 }
 
@@ -27,7 +28,7 @@ interface DiscoveryFilterPanelProps {
  * - Opening initializes from currentFilters (the currently applied Discovery filters).
  * - Cancel discards changes.
  * - Apply Filters commits the temporary selection.
- * - Maximum of 4 filters enforced.
+ * - Discovery filters have no selection limit after onboarding.
  *
  * This does NOT modify the user's permanent PreferenceContext preferences.
  * // TODO: Replace local filtering with recommendation API filtering
@@ -35,33 +36,35 @@ interface DiscoveryFilterPanelProps {
 export function DiscoveryFilterPanel({
   visible,
   currentFilters,
+  currentRadiusMeters,
   onApply,
   onCancel,
 }: DiscoveryFilterPanelProps) {
   const [tempSelection, setTempSelection] = useState<Set<string>>(new Set(currentFilters));
+  const [tempRadiusMeters, setTempRadiusMeters] = useState(currentRadiusMeters);
 
   // Re-initialize temp selection from currentFilters each time the panel opens
   useEffect(() => {
     if (visible) {
       setTempSelection(new Set(currentFilters));
+      setTempRadiusMeters(currentRadiusMeters);
     }
-  }, [visible, currentFilters]);
+  }, [visible, currentFilters, currentRadiusMeters]);
 
   const toggleCategory = (id: string) => {
     setTempSelection((prev) => {
       const next = new Set(prev);
       if (next.has(id)) {
         next.delete(id);
-      } else if (next.size < MAX_FILTERS) {
+      } else {
         next.add(id);
       }
-      // At max and trying to add → no-op
       return next;
     });
   };
 
   const handleApply = () => {
-    onApply(new Set(tempSelection));
+    onApply(new Set(tempSelection), tempRadiusMeters);
   };
 
   return (
@@ -81,7 +84,7 @@ export function DiscoveryFilterPanel({
 
           {/* Counter */}
           <Text style={styles.counter}>
-            {tempSelection.size} / {MAX_FILTERS} selected
+            {tempSelection.size} selected · no limit
           </Text>
 
           {/* Category chips */}
@@ -100,6 +103,26 @@ export function DiscoveryFilterPanel({
               />
             ))}
           </ScrollView>
+
+          <Text style={styles.radiusTitle}>Search distance from the map pin</Text>
+          <View style={styles.radiusOptions}>
+            {RADIUS_OPTIONS.map((radius) => {
+              const selected = radius === tempRadiusMeters;
+              return (
+                <TouchableOpacity
+                  key={radius}
+                  accessibilityRole="radio"
+                  accessibilityState={{ selected }}
+                  onPress={() => setTempRadiusMeters(radius)}
+                  style={[styles.radiusOption, selected && styles.radiusOptionSelected]}
+                >
+                  <Text style={[styles.radiusText, selected && styles.radiusTextSelected]}>
+                    {radius / 1000} km
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
 
           {/* Actions */}
           <View style={styles.actions}>
@@ -174,6 +197,38 @@ const styles = StyleSheet.create({
     rowGap: 12,
     alignItems: 'flex-start',
     paddingBottom: 8,
+  },
+  radiusTitle: {
+    color: AutumnColors.heading,
+    fontSize: 14,
+    fontWeight: '600',
+    marginBottom: 10,
+  },
+  radiusOptions: {
+    flexDirection: 'row',
+    gap: 10,
+    marginBottom: 20,
+  },
+  radiusOption: {
+    flex: 1,
+    alignItems: 'center',
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: AutumnColors.chipBorder,
+    backgroundColor: AutumnColors.chipBackground,
+    paddingVertical: 9,
+  },
+  radiusOptionSelected: {
+    borderColor: AutumnColors.primary,
+    backgroundColor: '#FFF0E9',
+  },
+  radiusText: {
+    color: AutumnColors.chipText,
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  radiusTextSelected: {
+    color: AutumnColors.primary,
   },
   actions: {
     flexDirection: 'row',

@@ -259,14 +259,16 @@ async function authenticatedRequest<T>(
 export function searchNearbyPlaces(
   center: Coordinates,
   preferenceKeys: PreferenceKey[],
+  radiusMeters = 10_000,
+  maxResultCount = 20,
 ): Promise<NearbyPlacesResponse> {
   return authenticatedRequest('/api/v1/maps/places/nearby', {
     method: 'POST',
     body: {
       center,
-      radius_meters: 5000,
+      radius_meters: radiusMeters,
       preference_keys: preferenceKeys,
-      max_result_count: 10,
+      max_result_count: maxResultCount,
       rank_preference: 'POPULARITY',
     },
   });

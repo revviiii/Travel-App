@@ -30,6 +30,7 @@ class FakePlacesClient:
                     "formattedAddress": "Manila, Metro Manila",
                     "location": {"latitude": 14.5869, "longitude": 120.9816},
                     "primaryType": "museum",
+                    "photos": [{"name": "places/ChIJ-test-place/photos/photo-1"}],
                 }
             ]
         }
@@ -98,9 +99,9 @@ def test_nearby_places_maps_preferences_and_normalizes_markers() -> None:
             "/api/v1/maps/places/nearby",
             json={
                 "center": {"latitude": 14.5995, "longitude": 120.9842},
-                "radius_meters": 3000,
+                "radius_meters": 20000,
                 "preference_keys": ["culture", "food"],
-                "max_result_count": 5,
+                "max_result_count": 20,
             },
         )
 
@@ -113,9 +114,11 @@ def test_nearby_places_maps_preferences_and_normalizes_markers() -> None:
         "location": {"latitude": 14.5869, "longitude": 120.9816},
         "primary_type": "museum",
         "rating": None,
-        "photo_name": None,
+        "photo_name": "places/ChIJ-test-place/photos/photo-1",
     }
     assert fake_places.query is not None
+    assert fake_places.query.radius_meters == 20000
+    assert fake_places.query.max_result_count == 20
     assert fake_places.query.included_types == [
         "museum",
         "art_gallery",

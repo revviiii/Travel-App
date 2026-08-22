@@ -36,7 +36,7 @@ class NearbyPlacesRequest(BaseModel):
     center: Coordinates
     radius_meters: float = Field(default=5_000, gt=0, le=20_000)
     preference_keys: list[PreferenceKey] = Field(default_factory=list, max_length=13)
-    max_result_count: int = Field(default=10, ge=1, le=10)
+    max_result_count: int = Field(default=20, ge=1, le=20)
     rank_preference: Literal["POPULARITY", "DISTANCE"] = "POPULARITY"
 
 

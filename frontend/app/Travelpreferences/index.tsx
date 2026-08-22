@@ -23,7 +23,7 @@ import { getMyPreferences, replaceMyPreferences } from '@/lib/api';
 
 export default function TravelPreferencesScreen() {
   const insets = useSafeAreaInsets();
-  const { maxPreferences, selectedPreferences, setPreferences } = usePreferences();
+  const { selectedPreferences, setPreferences } = usePreferences();
   const [draftPreferences, setDraftPreferences] = useState<Set<string>>(() => {
     const availableIds = new Set(PROFILE_TRAVEL_PREFERENCES.map((item) => item.id));
     const currentProfilePreferences = [...selectedPreferences].filter((id) => availableIds.has(id));
@@ -37,7 +37,7 @@ export default function TravelPreferencesScreen() {
     getMyPreferences()
       .then((preferences) => {
         if (!isCurrent) return;
-        const normalized = normalizePreferenceIds(preferences).slice(0, maxPreferences);
+        const normalized = normalizePreferenceIds(preferences);
         setDraftPreferences(new Set(normalized));
         setPreferences(normalized);
       })
@@ -56,7 +56,7 @@ export default function TravelPreferencesScreen() {
     return () => {
       isCurrent = false;
     };
-  }, [maxPreferences, setPreferences]);
+  }, [setPreferences]);
 
   const handleBack = () => {
     if (router.canGoBack()) router.back();
@@ -68,10 +68,8 @@ export default function TravelPreferencesScreen() {
       const next = new Set(current);
       if (next.has(id)) {
         next.delete(id);
-      } else if (next.size < maxPreferences) {
-        next.add(id);
       } else {
-        Alert.alert('Selection limit', `Choose up to ${maxPreferences} travel preferences.`);
+        next.add(id);
       }
       return next;
     });
@@ -140,9 +138,9 @@ export default function TravelPreferencesScreen() {
           <Text style={styles.description}>
             This is your current travel preferences. You can customize this by adding and removing.
           </Text>
-          <Text style={styles.selectionHint}>Choose up to {maxPreferences} interests</Text>
+          <Text style={styles.selectionHint}>Choose any interests that match your travel style</Text>
           <Text style={styles.counter}>
-            {draftPreferences.size} / {maxPreferences} selected
+            {draftPreferences.size} selected · no limit
           </Text>
 
           {isLoading ? <ActivityIndicator color={AutumnColors.primary} /> : <View style={styles.grid}>

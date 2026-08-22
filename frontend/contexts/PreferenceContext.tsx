@@ -7,27 +7,19 @@ import { normalizePreferenceIds } from '@/constants/preferences';
  * This context stores the user's selected travel preferences reactively
  * so both the Preferences screen and Discovery screen can share the same data.
  *
- * Maximum of 4 preferences may be selected at any time.
- *
  * The API-backed preference screens hydrate this context so recommendations
  * react immediately after a saved preference change.
  * This context will eventually be hydrated from the authenticated user's backend profile
  * and synced back on changes.
  */
 
-const MAX_PREFERENCES = 4;
-
 interface PreferenceContextValue {
   /** The set of currently selected preference IDs */
   selectedPreferences: Set<string>;
-  /** Toggle a preference. If already selected, deselects. If not selected and under max, selects. */
+  /** Toggle a preference without applying an editing limit. */
   togglePreference: (id: string) => void;
-  /** Replace the current preferences, capped at the configured maximum. */
+  /** Replace the current preferences. */
   setPreferences: (ids: Iterable<string>) => void;
-  /** Whether the maximum number of preferences has been reached */
-  isMaxReached: boolean;
-  /** Maximum allowed selections */
-  maxPreferences: number;
 }
 
 const PreferenceContext = createContext<PreferenceContextValue | null>(null);
@@ -41,22 +33,17 @@ export function PreferenceProvider({ children }: { children: ReactNode }) {
     setSelectedPreferences((prev) => {
       const next = new Set(prev);
       if (next.has(normalizedId)) {
-        // Always allow deselection
         next.delete(normalizedId);
-      } else if (next.size < MAX_PREFERENCES) {
-        // Only allow selection if under the maximum
+      } else {
         next.add(normalizedId);
       }
-      // If at max and trying to add, do nothing (no-op)
       return next;
     });
   }, []);
 
   const setPreferences = useCallback((ids: Iterable<string>) => {
-    setSelectedPreferences(new Set(normalizePreferenceIds(ids).slice(0, MAX_PREFERENCES)));
+    setSelectedPreferences(new Set(normalizePreferenceIds(ids)));
   }, []);
-
-  const isMaxReached = selectedPreferences.size >= MAX_PREFERENCES;
 
   return (
     <PreferenceContext.Provider
@@ -64,8 +51,6 @@ export function PreferenceProvider({ children }: { children: ReactNode }) {
         selectedPreferences,
         togglePreference,
         setPreferences,
-        isMaxReached,
-        maxPreferences: MAX_PREFERENCES,
       }}
     >
       {children}

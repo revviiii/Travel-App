@@ -526,6 +526,20 @@ Open the hosted health URL and give the free instance about a minute to wake.
 Add that exact Gmail address in Google Cloud Console under the OAuth consent
 screen's test users. Wait several minutes and try again.
 
+If Pinara says **Google sign-in cannot return to Pinara inside Expo Go**, the
+app is working as designed: Expo Go cannot register Pinara's custom callback
+scheme. Test Google login with an installed native build instead:
+
+```powershell
+cd frontend
+npx eas-cli@latest build --platform android --profile preview
+```
+
+Install the resulting APK on Android. A physical iPhone native test requires an
+iOS development/preview build and Apple's device-signing service. When the team
+does not have that service, use email/password on iPhone and test Google login
+on the Android Pinara preview APK.
+
 If Google finishes but Safari/Chrome opens `localhost`, the Supabase redirect
 was not allow-listed and Supabase fell back to its Site URL. In the hosted
 Supabase project, open **Authentication > URL Configuration** and set:
