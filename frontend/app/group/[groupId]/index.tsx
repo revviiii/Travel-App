@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
+import { Ionicons } from '@expo/vector-icons';
 import {
   ActivityIndicator,
   ScrollView,
@@ -17,10 +18,12 @@ import {
   getTrip,
   getTripMembers,
   getTripPlaces,
+  getPlacePhotoUrl,
   type SavedTripPlace,
   type TripMember,
   type TripSummary,
 } from '@/lib/api';
+import { supabase } from '@/lib/supabase';
 
 function formatPreference(value: string): string {
   return value
@@ -39,6 +42,7 @@ export default function GroupDetailsScreen() {
   const [savedPlaces, setSavedPlaces] = useState<SavedTripPlace[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [photoAccessToken, setPhotoAccessToken] = useState<string | null>(null);
 
   const loadGroup = useCallback(async () => {
     if (!groupId) return;
@@ -62,6 +66,9 @@ export default function GroupDetailsScreen() {
 
   useEffect(() => {
     void loadGroup();
+    void supabase.auth.getSession().then(({ data }) => {
+      setPhotoAccessToken(data.session?.access_token ?? null);
+    });
   }, [loadGroup]);
 
   const groupName = group?.name ?? 'Travel group';
@@ -91,8 +98,7 @@ export default function GroupDetailsScreen() {
           accessibilityLabel="Go back"
           style={styles.headerButton}
         >
-          {/* TODO: Replace with final Figma Back arrow SVG */}
-          <View style={styles.iconPlaceholder} />
+          <Ionicons color={AutumnColors.heading} name="arrow-back" size={22} />
         </TouchableOpacity>
 
         <Text style={styles.headerTitle} numberOfLines={1}>
@@ -105,8 +111,7 @@ export default function GroupDetailsScreen() {
           accessibilityLabel="Share group"
           style={styles.headerButton}
         >
-          {/* TODO: Replace with final Figma Share SVG icon */}
-          <View style={styles.iconPlaceholder} />
+          <Ionicons color={AutumnColors.heading} name="share-social-outline" size={21} />
         </TouchableOpacity>
       </View>
 
@@ -141,6 +146,12 @@ export default function GroupDetailsScreen() {
               <GroupJumpBackCard
                 title={group?.destination_name || groupName}
                 attractionCount={savedPlaces.length}
+                photoUri={savedPlaces[0]?.photo_name
+                  ? getPlacePhotoUrl(savedPlaces[0].photo_name, 480)
+                  : undefined}
+                photoHeaders={photoAccessToken
+                  ? { Authorization: `Bearer ${photoAccessToken}` }
+                  : undefined}
                 onPress={() => {
                   const path = `/discovery?tripId=${encodeURIComponent(groupId ?? '')}&section=itinerary` as RelativePathString;
                   router.push(path);
@@ -183,9 +194,8 @@ export default function GroupDetailsScreen() {
                 Create camping with your Friends
               </Text>
             </View>
-            {/* TODO: Replace with final Figma Add SVG icon */}
             <View style={styles.addIconCircle}>
-              <View style={styles.addIconPlaceholder} />
+              <Ionicons color="#FFFFFF" name="add" size={22} />
             </View>
           </TouchableOpacity>
         )}
@@ -198,6 +208,7 @@ export default function GroupDetailsScreen() {
             <GroupMemberCard
               name={member.full_name || `${formatPreference(member.role)} member`}
               preferences={member.preference_keys.map(formatPreference)}
+              avatarUrl={member.avatar_url}
             />
           </View>
         ))}
@@ -211,12 +222,10 @@ export default function GroupDetailsScreen() {
           style={styles.addMemberRow}
         >
           <View style={styles.addMemberAvatar}>
-            {/* TODO: Replace with final Figma Add Member SVG icon */}
-            <View style={styles.addMemberIconPlaceholder} />
+            <Ionicons color={AutumnColors.heading} name="person-add-outline" size={19} />
           </View>
           <Text style={styles.addMemberText}>Add Member</Text>
-          {/* TODO: Replace with final Figma plus SVG icon */}
-          <View style={styles.plusIconPlaceholder} />
+          <Ionicons color={AutumnColors.body} name="add-circle-outline" size={21} />
         </TouchableOpacity> : null}
       </ScrollView>
 

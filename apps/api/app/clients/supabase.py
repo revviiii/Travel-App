@@ -10,7 +10,7 @@ PROFILE_FIELDS = (
     "onboarding_completed,created_at,updated_at"
 )
 TRIP_FIELDS = (
-    "id,owner_id,name,destination_name,destination_latitude,destination_longitude,"
+    "id,owner_id,name,image_url,destination_name,destination_latitude,destination_longitude,"
     "start_date,end_date,budget,status,created_at,updated_at"
 )
 TRAVEL_GOAL_FIELDS = "id,user_id,goal_text,created_at"
@@ -290,6 +290,23 @@ class SupabaseClient:
             "GET",
             "/rest/v1/trips",
             params={"id": f"eq.{trip_id}", "select": TRIP_FIELDS},
+        )
+        if not trips:
+            raise SupabaseResourceNotFoundError("Trip was not found")
+        return (await self._add_trip_membership(trips, user_id))[0]
+
+    async def update_trip(
+        self,
+        trip_id: UUID,
+        user_id: UUID,
+        values: Mapping[str, object],
+    ) -> Mapping[str, object]:
+        trips = await self._request_rows(
+            "PATCH",
+            "/rest/v1/trips",
+            params={"id": f"eq.{trip_id}", "select": TRIP_FIELDS},
+            json=values,
+            headers={"Prefer": "return=representation"},
         )
         if not trips:
             raise SupabaseResourceNotFoundError("Trip was not found")

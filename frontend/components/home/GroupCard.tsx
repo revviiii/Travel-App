@@ -1,4 +1,5 @@
 import { Ionicons } from '@expo/vector-icons';
+import { Image } from 'expo-image';
 import { Platform, StyleSheet, Text, TouchableOpacity } from 'react-native';
 import { AutumnColors } from '@/constants/colors';
 import { MemberAvatarStack } from '@/components/home/MemberAvatarStack';
@@ -7,6 +8,7 @@ interface GroupCardProps {
   name: string;
   /** Total number of members. 0 means no members joined yet. */
   memberCount: number;
+  imageUrl?: string | null;
   onPress?: () => void;
   onLongPress?: () => void;
 }
@@ -16,7 +18,7 @@ interface GroupCardProps {
  * Adapts layout based on member count: no avatar area when 0, stack when 1+.
  * Supports long-press to trigger delete confirmation.
  */
-export function GroupCard({ name, memberCount, onPress, onLongPress }: GroupCardProps) {
+export function GroupCard({ name, memberCount, imageUrl, onPress, onLongPress }: GroupCardProps) {
   return (
     <TouchableOpacity
       activeOpacity={0.8}
@@ -25,10 +27,14 @@ export function GroupCard({ name, memberCount, onPress, onLongPress }: GroupCard
       delayLongPress={500}
       accessibilityRole="button"
       accessibilityLabel={`Group: ${name}`}
-      accessibilityHint={onLongPress ? 'Long press to remove this group' : undefined}
+      accessibilityHint={onLongPress ? 'Long press to rename, change the photo, or delete' : undefined}
       style={styles.card}
     >
-      <MemberAvatarStack memberCount={memberCount} />
+      {imageUrl ? (
+        <Image contentFit="cover" source={{ uri: imageUrl }} style={styles.groupImage} />
+      ) : (
+        <MemberAvatarStack memberCount={memberCount} />
+      )}
 
       <Text style={styles.name} numberOfLines={1} ellipsizeMode="tail">
         {name}
@@ -67,5 +73,11 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: '600',
     color: AutumnColors.heading,
+  },
+  groupImage: {
+    width: 38,
+    height: 38,
+    borderRadius: 10,
+    backgroundColor: AutumnColors.chipBackground,
   },
 });

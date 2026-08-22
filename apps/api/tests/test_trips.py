@@ -17,6 +17,7 @@ TRIP = {
     "id": str(TRIP_ID),
     "owner_id": str(USER_ID),
     "name": "Manila Weekend",
+    "image_url": None,
     "destination_name": "Manila",
     "destination_latitude": 14.5995,
     "destination_longitude": 120.9842,
@@ -47,6 +48,7 @@ class FakeSupabaseClient:
     def __init__(self) -> None:
         self.trips: list[Mapping[str, object]] = [TRIP.copy()]
         self.create_values: Mapping[str, object] | None = None
+        self.update_values: Mapping[str, object] | None = None
         self.invitation_values: Mapping[str, object] | None = None
 
     async def create_trip(
@@ -81,6 +83,17 @@ class FakeSupabaseClient:
                 "joined_at": "2026-08-19T00:00:00Z",
             }
         ]
+
+    async def update_trip(
+        self,
+        trip_id: UUID,
+        user_id: UUID,
+        values: Mapping[str, object],
+    ) -> Mapping[str, object]:
+        assert trip_id == TRIP_ID
+        assert user_id == USER_ID
+        self.update_values = values
+        return TRIP | dict(values)
 
     async def delete_trip(self, trip_id: UUID) -> None:
         if trip_id != TRIP_ID:
@@ -166,6 +179,25 @@ def test_read_members_and_delete_trip() -> None:
     assert members_response.json()[0]["role"] == "owner"
     assert delete_response.status_code == 204
     assert fake_supabase.trips == []
+
+
+def test_update_trip_name_and_image() -> None:
+    fake_supabase = FakeSupabaseClient()
+
+    with authenticated_client(fake_supabase) as client:
+        response = client.patch(
+            f"/api/v1/trips/{TRIP_ID}",
+            json={"name": "Japan Adventure", "image_url": "https://example.com/group.jpg"},
+        )
+
+    app.dependency_overrides.clear()
+    assert response.status_code == 200
+    assert response.json()["name"] == "Japan Adventure"
+    assert response.json()["image_url"] == "https://example.com/group.jpg"
+    assert fake_supabase.update_values == {
+        "name": "Japan Adventure",
+        "image_url": "https://example.com/group.jpg",
+    }
 
 
 def test_unknown_trip_returns_not_found() -> None:

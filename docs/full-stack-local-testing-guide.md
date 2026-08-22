@@ -62,7 +62,7 @@ that address means the emulator itself.
 | Email signup and login | Supabase Auth | Connected |
 | Profiles | Supabase PostgreSQL through FastAPI | Connected and editable in the app |
 | Account photo | Google Auth metadata or the `avatars` Storage bucket | Connected; users can also choose or take a photo |
-| Group creation/list/deletion | `trips` and `trip_members` tables | Connected and persistent |
+| Group creation/rename/photo/deletion | `trips`, `trip_members`, and `trip-images` Storage | Connected and persistent |
 | Travel goals | `travel_goals` table | Connected and persistent |
 | Group goals | `group_goals` table | Connected, persistent, and live for members |
 | Nearby recommendations | Google Places API through FastAPI | Connected when a valid Google key is configured |
@@ -409,8 +409,9 @@ output, and FastAPI terminal error for any failure.
 - Verify it appears immediately.
 - Close/reopen the app and verify the group still appears.
 - In Studio, verify rows in `trips` and `trip_members`.
-- Long-press a group owned by the test user, confirm deletion, and verify both
-  the UI and database update.
+- Long-press a group owned by the test user. Rename it, choose a picture, save,
+  and verify both survive an app restart. Long-press it again, delete it, and
+  verify both the UI and database update.
 - Open a group and verify its real name, members, preferences, and saved-place
   count load instead of placeholder data.
 - As its owner, create/share an invitation. Open the link while signed in as a
@@ -477,6 +478,9 @@ output, and FastAPI terminal error for any failure.
 - Tap **Sync confirmed places to calendar**, choose a writable Google or device
   calendar, and verify only orange places were added. Gray proposals must never
   be exported.
+- On an Android emulator without a Google calendar, verify Pinara creates a
+  local **Pinara Itineraries** calendar and completes the sync instead of showing
+  a dead-end error.
 
 ### Profile and preferences
 

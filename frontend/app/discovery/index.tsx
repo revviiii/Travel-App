@@ -5,6 +5,7 @@ import {
   FlatList,
   Linking,
   Modal,
+  Platform,
   ScrollView,
   StyleSheet,
   Switch,
@@ -601,7 +602,20 @@ export default function DiscoveryScreen() {
       const calendars = await Calendar.getCalendarsAsync(Calendar.EntityTypes.EVENT);
       const writableCalendars = calendars.filter((calendar) => calendar.allowsModifications);
       if (writableCalendars.length === 0) {
-        throw new Error('Add a writable Google or device calendar, then try again.');
+        if (Platform.OS === 'android') {
+          const localCalendarId = await Calendar.createCalendarAsync({
+            title: 'Pinara Itineraries',
+            name: 'pinaraItineraries',
+            color: AutumnColors.primary,
+            entityType: Calendar.EntityTypes.EVENT,
+            source: { isLocalAccount: true, name: 'Pinara' } as Calendar.Source,
+            ownerAccount: 'Pinara',
+            accessLevel: Calendar.CalendarAccessLevel.OWNER,
+          });
+          await handleSyncToCalendar(localCalendarId);
+          return;
+        }
+        throw new Error('Add a writable device or iCloud calendar, then try again.');
       }
       setCalendarChoices(writableCalendars);
       setShowCalendarPicker(true);
