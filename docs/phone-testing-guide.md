@@ -287,7 +287,6 @@ API_V1_PREFIX=/api/v1
 
 SUPABASE_URL=http://127.0.0.1:54421
 SUPABASE_PUBLISHABLE_KEY=<local-publishable-key>
-SUPABASE_SECRET_KEY=<local-secret-key>
 
 GOOGLE_MAPS_API_KEY=<restricted-development-server-key>
 GOOGLE_PLACES_REQUESTS_PER_MINUTE=12

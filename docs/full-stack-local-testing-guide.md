@@ -261,7 +261,6 @@ API_V1_PREFIX=/api/v1
 
 SUPABASE_URL=http://127.0.0.1:54421
 SUPABASE_PUBLISHABLE_KEY=<paste-local-publishable-key>
-SUPABASE_SECRET_KEY=<paste-local-secret-key>
 
 GOOGLE_MAPS_API_KEY=<obtain-from-Ramyl-securely>
 GOOGLE_PLACES_REQUESTS_PER_MINUTE=12
