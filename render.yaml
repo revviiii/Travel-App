@@ -4,6 +4,7 @@ services:
     runtime: docker
     plan: free
     region: singapore
+    autoDeployTrigger: commit
     dockerfilePath: ./apps/api/Dockerfile
     dockerContext: ./apps/api
     healthCheckPath: /api/v1/health
