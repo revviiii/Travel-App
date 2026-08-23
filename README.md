@@ -39,7 +39,7 @@ links, polls, and personal calendars. Pinara gives the group one shared flow:
 
 | Resource | Link | Notes |
 | --- | --- | --- |
-| Android preview APK | [Download the verified Pinara preview](https://expo.dev/artifacts/eas/JZi2-UOSO7iV7blH7KMpXGK5oGsaAGUiXe3S5BmdtHA.apk) | Android 6+ device or Google-enabled emulator; no Expo account required |
+| Android preview APK | [Download the verified Pinara preview](https://expo.dev/artifacts/eas/PYwLjKGOGsN2rTM0g-FslgDJQwoUKaHTaQwHMVt-ULk.apk) | Android 6+ device or Google-enabled emulator; no Expo account required |
 | Hosted API health | [travel-app-api health](https://travel-app-api-661e.onrender.com/api/v1/health) | A first request can take about one minute while the free Render service wakes |
 | Interactive API docs | [FastAPI Swagger UI](https://travel-app-api-661e.onrender.com/docs) | Protected operations require a Supabase user access token |
 
