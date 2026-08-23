@@ -551,7 +551,6 @@ export default function HomeScreen() {
             {/* Section header */}
             <View style={styles.goalsHeader}>
               <Text style={styles.goalsTitle}>TRAVEL GOALS</Text>
-              <Ionicons color={AutumnColors.body} name="notifications-outline" size={20} />
             </View>
 
             {/* Goal input */}

@@ -59,7 +59,7 @@ export function TravelGoalInput({ onAdd }: TravelGoalInputProps) {
           accessibilityLabel="Add goal"
           style={[styles.addButton, !canSubmit && styles.addButtonDisabled]}
         >
-          <Image source={sendIcon} style={styles.sendIcon} contentFit="contain" tintColor="#FFFFFF" />
+          <Image source={sendIcon} style={styles.sendIcon} contentFit="contain" />
         </TouchableOpacity>
       </View>
       <Text style={styles.counter}>
