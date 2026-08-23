@@ -28,6 +28,12 @@ class TripUpdate(BaseModel):
     image_url: str | None = Field(default=None, max_length=2048)
 
 
+class MemberPreview(BaseModel):
+    user_id: UUID
+    full_name: str | None = None
+    avatar_url: str | None = None
+
+
 class TripResponse(BaseModel):
     model_config = ConfigDict(extra="ignore")
 
@@ -43,6 +49,7 @@ class TripResponse(BaseModel):
     budget: Decimal | None = None
     status: TripStatus
     member_count: int = Field(ge=1)
+    member_preview: list[MemberPreview] = Field(default_factory=list)
     current_user_role: TripRole
     created_at: datetime
     updated_at: datetime

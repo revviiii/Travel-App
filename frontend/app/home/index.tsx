@@ -53,6 +53,7 @@ interface GroupData {
   id: string;
   name: string;
   memberCount: number;
+  memberPreview: TripSummary['member_preview'];
   currentUserRole: TripSummary['current_user_role'];
   imageUrl: string | null;
 }
@@ -62,6 +63,7 @@ function toGroupData(trip: TripSummary): GroupData {
     id: trip.id,
     name: trip.name,
     memberCount: trip.member_count,
+    memberPreview: trip.member_preview ?? [],
     currentUserRole: trip.current_user_role,
     imageUrl: trip.image_url,
   };
@@ -393,6 +395,7 @@ export default function HomeScreen() {
       <GroupCard
         name={item.name}
         memberCount={item.memberCount}
+        memberPreview={item.memberPreview}
         imageUrl={item.imageUrl}
         onPress={() => {
           const path = `/group/${item.id}` as RelativePathString;
@@ -766,6 +769,40 @@ export default function HomeScreen() {
               )}
               <Text style={styles.groupPhotoText}>Choose picture</Text>
             </TouchableOpacity>
+            {groupToManage?.imageUrl && !managedGroupPhoto ? (
+              <TouchableOpacity
+                accessibilityLabel="Remove group photo"
+                accessibilityRole="button"
+                disabled={isSavingGroup}
+                onPress={() => {
+                  // Clear the custom group image via updateTrip({ image_url: null })
+                  setManagedGroupPhoto(null);
+                  void (async () => {
+                    if (!groupToManage) return;
+                    setIsSavingGroup(true);
+                    try {
+                      const updatedTrip = await updateTrip(groupToManage.id, { image_url: null });
+                      const updatedGroup = toGroupData(updatedTrip);
+                      setGroups((current) => current.map((g) =>
+                        g.id === updatedGroup.id ? updatedGroup : g
+                      ));
+                      setGroupToManage(updatedGroup);
+                    } catch (error) {
+                      Alert.alert(
+                        'Unable to remove photo',
+                        error instanceof Error ? error.message : 'Please try again.',
+                      );
+                    } finally {
+                      setIsSavingGroup(false);
+                    }
+                  })();
+                }}
+                style={styles.removePhotoButton}
+              >
+                <Ionicons color={AutumnColors.primary} name="close-circle-outline" size={16} />
+                <Text style={styles.removePhotoText}>Remove Photo</Text>
+              </TouchableOpacity>
+            ) : null}
             <TextInput
               accessibilityLabel="Group name"
               maxLength={120}
@@ -1208,6 +1245,20 @@ const styles = StyleSheet.create({
     color: AutumnColors.primary,
     fontSize: 13,
     fontWeight: '600',
+  },
+  removePhotoButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    alignSelf: 'center',
+    gap: 4,
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+    marginBottom: 8,
+  },
+  removePhotoText: {
+    color: AutumnColors.primary,
+    fontSize: 12,
+    fontWeight: '500',
   },
   manageGroupInput: {
     borderWidth: 1,

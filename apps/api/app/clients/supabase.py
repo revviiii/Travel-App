@@ -662,25 +662,46 @@ class SupabaseClient:
             "/rest/v1/trip_members",
             params={
                 "trip_id": f"in.({','.join(trip_ids)})",
-                "select": "trip_id,user_id,role",
+                "select": (
+                    "trip_id,user_id,role,joined_at,"
+                    "profile:profiles!trip_members_user_id_fkey(full_name,avatar_url)"
+                ),
+                "order": "joined_at.asc",
             },
         )
         member_counts: dict[str, int] = {trip_id: 0 for trip_id in trip_ids}
         current_roles: dict[str, object] = {}
+        members_by_trip: dict[str, list[Mapping[str, object]]] = {trip_id: [] for trip_id in trip_ids}
+
         for member in members:
             trip_id = str(member["trip_id"])
             member_counts[trip_id] = member_counts.get(trip_id, 0) + 1
             if str(member["user_id"]) == str(user_id):
                 current_roles[trip_id] = member["role"]
+            members_by_trip.setdefault(trip_id, []).append(member)
 
-        return [
-            dict(trip)
-            | {
-                "member_count": member_counts[str(trip["id"])],
-                "current_user_role": current_roles[str(trip["id"])],
-            }
-            for trip in trips
-        ]
+        max_preview = 4
+        enriched: list[Mapping[str, object]] = []
+        for trip in trips:
+            tid = str(trip["id"])
+            preview: list[Mapping[str, object]] = []
+            for m in members_by_trip.get(tid, [])[:max_preview]:
+                profile_value = m.get("profile")
+                profile = profile_value if isinstance(profile_value, Mapping) else {}
+                preview.append({
+                    "user_id": str(m["user_id"]),
+                    "full_name": profile.get("full_name"),
+                    "avatar_url": profile.get("avatar_url"),
+                })
+            enriched.append(
+                dict(trip)
+                | {
+                    "member_count": member_counts[tid],
+                    "current_user_role": current_roles[tid],
+                    "member_preview": preview,
+                }
+            )
+        return enriched
 
     async def _request_rows(
         self,

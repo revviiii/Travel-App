@@ -90,9 +90,6 @@ export function GroupInviteSheet({
     >
       <View style={styles.overlay}>
         <View style={styles.sheet}>
-          {/* Drag handle visual */}
-          <View style={styles.handleBar} />
-
           <Text style={styles.title}>Invite friends to your Group</Text>
 
           {/* Share button */}
@@ -154,17 +151,10 @@ const styles = StyleSheet.create({
     backgroundColor: AutumnColors.background,
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
-    paddingTop: 12,
+    paddingTop: 24,
     paddingHorizontal: 24,
     paddingBottom: 32,
     alignItems: 'center',
-  },
-  handleBar: {
-    width: 40,
-    height: 4,
-    borderRadius: 2,
-    backgroundColor: AutumnColors.chipBorder,
-    marginBottom: 20,
   },
   title: {
     fontSize: 16,

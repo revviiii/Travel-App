@@ -1289,7 +1289,12 @@ export default function DiscoveryScreen() {
               {placeToSave?.name}
             </Text>
             <Text style={styles.choiceLabel}>Add to group</Text>
-            <View style={styles.modalTripList}>
+            <ScrollView
+              style={styles.modalTripScroll}
+              contentContainerStyle={styles.modalTripList}
+              showsVerticalScrollIndicator={false}
+              nestedScrollEnabled
+            >
               {trips.map((trip) => (
                 <TouchableOpacity
                   key={trip.id}
@@ -1303,7 +1308,15 @@ export default function DiscoveryScreen() {
                     trip.id === choiceTripId && styles.modalTripButtonSelected,
                   ]}
                 >
+                  <Image
+                    source={groupIcon}
+                    style={styles.modalTripIcon}
+                    contentFit="contain"
+                    tintColor={trip.id === choiceTripId ? '#FFFFFF' : AutumnColors.chipText}
+                  />
                   <Text
+                    numberOfLines={1}
+                    ellipsizeMode="tail"
                     style={[
                       styles.modalTripText,
                       trip.id === choiceTripId && styles.modalTripTextSelected,
@@ -1313,7 +1326,7 @@ export default function DiscoveryScreen() {
                   </Text>
                 </TouchableOpacity>
               ))}
-            </View>
+            </ScrollView>
             <View style={styles.choicePanel}>
               <TouchableOpacity
                 accessibilityRole="button"
@@ -1971,11 +1984,31 @@ const styles = StyleSheet.create({
     lineHeight: 18,
     paddingVertical: 12,
   },
+  modalTripButtonSelected: {
+    backgroundColor: AutumnColors.secondaryAccent,
+    borderColor: AutumnColors.secondaryAccent,
+  },
+  modalTripText: {
+    flex: 1,
+    color: AutumnColors.chipText,
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  modalTripTextSelected: {
+    color: '#FFFFFF',
+  },
   modalTripList: {
     gap: 10,
+    paddingBottom: 4,
+  },
+  modalTripScroll: {
+    maxHeight: 150,
     marginBottom: 14,
   },
   modalTripButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
     borderRadius: 12,
     backgroundColor: AutumnColors.chipBackground,
     borderWidth: 1,
@@ -1983,18 +2016,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 10,
   },
-  modalTripButtonSelected: {
-    backgroundColor: AutumnColors.secondaryAccent,
-    borderColor: AutumnColors.secondaryAccent,
-  },
-  modalTripText: {
-    color: AutumnColors.chipText,
-    fontSize: 14,
-    fontWeight: '600',
-    textAlign: 'center',
-  },
-  modalTripTextSelected: {
-    color: '#FFFFFF',
+  modalTripIcon: {
+    width: 18,
+    height: 18,
   },
   choiceLabel: {
     color: AutumnColors.heading,

@@ -81,7 +81,7 @@ async def update_trip(
     user: Annotated[CurrentUser, Depends(get_current_user)],
     supabase: Annotated[SupabaseClient, Depends(get_supabase_client)],
 ) -> TripResponse:
-    values = update.model_dump(exclude_none=True)
+    values = {k: v for k, v in update.model_dump().items() if k in update.model_fields_set}
     if not values:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,

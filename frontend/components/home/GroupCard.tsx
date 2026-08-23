@@ -3,11 +3,14 @@ import { Image } from 'expo-image';
 import { Platform, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { AutumnColors } from '@/constants/colors';
 import { MemberAvatarStack } from '@/components/home/MemberAvatarStack';
+import type { MemberPreview } from '@/lib/api';
 
 interface GroupCardProps {
   name: string;
   /** Total number of members. 0 means no members joined yet. */
   memberCount: number;
+  /** First up to 4 members with profile data for the avatar stack */
+  memberPreview?: MemberPreview[];
   imageUrl?: string | null;
   onPress?: () => void;
   onLongPress?: () => void;
@@ -22,6 +25,7 @@ interface GroupCardProps {
 export function GroupCard({
   name,
   memberCount,
+  memberPreview,
   imageUrl,
   onPress,
   onLongPress,
@@ -42,7 +46,7 @@ export function GroupCard({
         {imageUrl ? (
           <Image contentFit="cover" source={{ uri: imageUrl }} style={styles.groupImage} />
         ) : (
-          <MemberAvatarStack memberCount={memberCount} />
+          <MemberAvatarStack memberCount={memberCount} members={memberPreview} />
         )}
 
         <Text style={styles.name} numberOfLines={1} ellipsizeMode="tail">

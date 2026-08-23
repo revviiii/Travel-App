@@ -46,6 +46,12 @@ type ComputedRouteResponse = {
   provider: 'google';
 };
 
+export type MemberPreview = {
+  user_id: string;
+  full_name: string | null;
+  avatar_url: string | null;
+};
+
 export type TripSummary = {
   id: string;
   owner_id: string;
@@ -56,6 +62,7 @@ export type TripSummary = {
   end_date: string | null;
   budget: number | null;
   member_count: number;
+  member_preview: MemberPreview[];
   current_user_role: 'owner' | 'admin' | 'member';
   status: 'planning' | 'active' | 'completed' | 'cancelled';
 };
@@ -399,7 +406,7 @@ export function createTrip(name: string): Promise<TripSummary> {
 
 export function updateTrip(
   tripId: string,
-  update: { name?: string; image_url?: string },
+  update: { name?: string; image_url?: string | null },
 ): Promise<TripSummary> {
   return authenticatedRequest(`/api/v1/trips/${encodeURIComponent(tripId)}`, {
     method: 'PATCH',
