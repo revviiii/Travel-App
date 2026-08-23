@@ -39,5 +39,4 @@ supabase/.branches/
 Thumbs.db
 *.swp
 
-#Kiro
-.kiro/
+# Kiro hackathon materials are intentionally committed. Do not ignore .kiro/.

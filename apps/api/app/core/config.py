@@ -35,7 +35,6 @@ class Settings(BaseSettings):
 
     supabase_url: str | None = None
     supabase_publishable_key: str | None = None
-    supabase_secret_key: SecretStr | None = None
 
     google_maps_api_key: SecretStr | None = None
     google_places_requests_per_minute: int = Field(default=12, ge=1, le=1_000)

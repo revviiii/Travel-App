@@ -671,7 +671,9 @@ class SupabaseClient:
         )
         member_counts: dict[str, int] = {trip_id: 0 for trip_id in trip_ids}
         current_roles: dict[str, object] = {}
-        members_by_trip: dict[str, list[Mapping[str, object]]] = {trip_id: [] for trip_id in trip_ids}
+        members_by_trip: dict[str, list[Mapping[str, object]]] = {
+            trip_id: [] for trip_id in trip_ids
+        }
 
         for member in members:
             trip_id = str(member["trip_id"])
@@ -688,11 +690,13 @@ class SupabaseClient:
             for m in members_by_trip.get(tid, [])[:max_preview]:
                 profile_value = m.get("profile")
                 profile = profile_value if isinstance(profile_value, Mapping) else {}
-                preview.append({
-                    "user_id": str(m["user_id"]),
-                    "full_name": profile.get("full_name"),
-                    "avatar_url": profile.get("avatar_url"),
-                })
+                preview.append(
+                    {
+                        "user_id": str(m["user_id"]),
+                        "full_name": profile.get("full_name"),
+                        "avatar_url": profile.get("avatar_url"),
+                    }
+                )
             enriched.append(
                 dict(trip)
                 | {

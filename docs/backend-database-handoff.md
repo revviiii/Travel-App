@@ -37,11 +37,13 @@ Use it with `full-stack-local-testing-guide.md` and `api-contracts.md`.
   retained as identifiers; request throttling and Google Cloud quotas control
   accidental spend.
 - The original idea document also proposed optional notifications, check-ins,
-  achievements, photo memories, and a Strava-style trip recap. These are not in
-  the agreed low-fi demo workflow and are stretch features, not unfinished
-  backend defects.
-- Social-login buttons and profile-photo selection remain frontend placeholders.
-  Email/password Supabase Auth is the supported demo login path.
+  achievements, and photo memories. These remain stretch features. A focused
+  foreground route recorder and saved **My Tracks** list now cover the agreed
+  Strava-style demo concept without claiming background fitness tracking.
+- Email/password is the universal demo login. Google sign-in is implemented for
+  the native Pinara build; Expo Go cannot receive Pinara's custom OAuth callback.
+  Profile and group image selection/upload are implemented through Supabase
+  Storage.
 
 ## What teammates must do after pulling
 
@@ -74,8 +76,6 @@ Normal automated tests mock Google requests and do not consume Maps quota.
 
 ## Current validation note
 
-All backend tests and frontend static checks pass in the development workspace.
-The newest database migrations still need `npx supabase migration up` in Kiro
-with Docker Desktop available; Codex's isolated shell could not access the
-Windows Docker executable. That environment limitation does not replace the
-required teammate migration smoke test.
+Run the automated checks above and a two-account device smoke test against the
+exact commit used for the final build. Confirm the hosted Supabase migration
+history matches `supabase/migrations` before recording the final demo.
