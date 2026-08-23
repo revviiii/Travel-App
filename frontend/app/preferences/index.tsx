@@ -52,7 +52,7 @@ export default function PreferencesScreen() {
       && selectedPreferences.size >= REQUIRED_ONBOARDING_PREFERENCES
     ) {
       Alert.alert(
-        'Four preferences selected',
+        'Selection limit reached',
         'Remove one preference before choosing another.',
       );
       return;
@@ -76,12 +76,7 @@ export default function PreferencesScreen() {
         <Text style={styles.description}>
           {'Share your travel preferences, and we\'ll craft your perfect trip.'}
         </Text>
-        <Text style={styles.selectionHint}>Choose exactly four interests to continue</Text>
-
-        {/* Selection counter */}
-        <Text style={styles.counter}>
-          {selectedPreferences.size} / {REQUIRED_ONBOARDING_PREFERENCES} selected
-        </Text>
+        <Text style={styles.selectionHint}>Choose your travel interests to continue</Text>
 
         {/* Preference chips — flex-wrap flow layout */}
         <View style={styles.grid}>
@@ -178,15 +173,6 @@ const styles = StyleSheet.create({
     color: AutumnColors.body,
     textAlign: 'center',
     marginTop: 6,
-  },
-
-  /* Counter */
-  counter: {
-    fontSize: 12,
-    fontWeight: '400',
-    color: AutumnColors.body,
-    textAlign: 'right',
-    marginTop: 12,
     marginBottom: 16,
   },
 
