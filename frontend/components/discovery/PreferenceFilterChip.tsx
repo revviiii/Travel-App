@@ -1,20 +1,64 @@
+import { MaterialCommunityIcons } from '@expo/vector-icons';
+import { Image, type ImageSource } from 'expo-image';
 import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { AutumnColors } from '@/constants/colors';
+import { PREFERENCE_ICONS } from '@/components/onboarding/PreferenceChip';
 
 interface PreferenceFilterChipProps {
   label: string;
   active: boolean;
   onPress: () => void;
+  /** When provided, renders this image/SVG via expo-image (e.g. group-ic.svg) */
+  iconSource?: ImageSource;
+  /** Preference category ID — resolves to a MaterialCommunityIcons icon */
+  preferenceId?: string;
 }
 
 /**
  * A Discovery quick-filter chip.
- * Larger rounded pill shape matching the Figma reference.
- * Active: warm yellow background + brown text.
- * Inactive: cream background + muted border + normal text (still selectable, not disabled).
- * Includes a placeholder for the future SVG icon on the left.
+ * Icon priority:
+ * 1. iconSource (explicit image/SVG) — used for Group/Trip selectors
+ * 2. preferenceId → PREFERENCE_ICONS mapping → MaterialCommunityIcons
+ * 3. Fallback placeholder dot (only if neither is provided)
  */
-export function PreferenceFilterChip({ label, active, onPress }: PreferenceFilterChipProps) {
+export function PreferenceFilterChip({
+  label,
+  active,
+  onPress,
+  iconSource,
+  preferenceId,
+}: PreferenceFilterChipProps) {
+  const iconColor = active ? AutumnColors.filterChipText : AutumnColors.body;
+
+  const renderIcon = () => {
+    if (iconSource) {
+      return (
+        <Image
+          source={iconSource}
+          style={styles.iconImage}
+          contentFit="contain"
+          tintColor={iconColor}
+        />
+      );
+    }
+
+    if (preferenceId) {
+      const iconName = PREFERENCE_ICONS[preferenceId] ?? 'map-marker-outline';
+      return (
+        <MaterialCommunityIcons
+          name={iconName}
+          size={16}
+          color={iconColor}
+        />
+      );
+    }
+
+    // Fallback placeholder
+    return (
+      <View style={[styles.iconPlaceholder, active && styles.iconPlaceholderActive]} />
+    );
+  };
+
   return (
     <TouchableOpacity
       activeOpacity={0.7}
@@ -24,8 +68,7 @@ export function PreferenceFilterChip({ label, active, onPress }: PreferenceFilte
       accessibilityLabel={`${label} filter`}
       style={[styles.chip, active ? styles.chipActive : styles.chipInactive]}
     >
-      {/* TODO: Replace with final Figma preference SVG icon */}
-      <View style={[styles.iconPlaceholder, active && styles.iconActive]} />
+      {renderIcon()}
       <Text style={[styles.label, active && styles.labelActive]}>{label}</Text>
     </TouchableOpacity>
   );
@@ -49,13 +92,17 @@ const styles = StyleSheet.create({
     backgroundColor: AutumnColors.filterChipBackground,
     borderColor: AutumnColors.filterChipBackground,
   },
+  iconImage: {
+    width: 18,
+    height: 18,
+  },
   iconPlaceholder: {
     width: 18,
     height: 18,
     borderRadius: 9,
     backgroundColor: AutumnColors.chipBorder,
   },
-  iconActive: {
+  iconPlaceholderActive: {
     backgroundColor: AutumnColors.filterChipText,
   },
   label: {

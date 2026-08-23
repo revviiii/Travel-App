@@ -1,12 +1,18 @@
-import { Ionicons } from '@expo/vector-icons';
+import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
 import { Platform, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { AutumnColors } from '@/constants/colors';
+import { PREFERENCE_ICONS } from '@/components/onboarding/PreferenceChip';
+
+interface PreferenceDisplay {
+  id: string;
+  label: string;
+}
 
 interface GroupMemberCardProps {
   name: string;
-  /** Temporary preference labels for layout testing */
-  preferences?: string[];
+  /** Preference objects with id and label for correct icon resolution */
+  preferences?: PreferenceDisplay[];
   avatarUrl?: string | null;
   onMenuPress?: () => void;
 }
@@ -42,11 +48,15 @@ export function GroupMemberCard({
 
         {preferences.length > 0 && (
           <View style={styles.chipRow}>
-            {preferences.map((pref, idx) => (
-              <View key={idx} style={styles.chip}>
-                <Ionicons color={AutumnColors.chipText} name="compass-outline" size={11} />
+            {preferences.map((pref) => (
+              <View key={pref.id} style={styles.chip}>
+                <MaterialCommunityIcons
+                  color={AutumnColors.chipText}
+                  name={PREFERENCE_ICONS[pref.id] ?? 'map-marker-outline'}
+                  size={11}
+                />
                 <Text style={styles.chipLabel} numberOfLines={1}>
-                  {pref}
+                  {pref.label}
                 </Text>
               </View>
             ))}

@@ -56,9 +56,10 @@ export function DiscoveryFilterPanel({
       const next = new Set(prev);
       if (next.has(id)) {
         next.delete(id);
-      } else {
+      } else if (next.size < 4) {
         next.add(id);
       }
+      // At max (4) and trying to add → no-op
       return next;
     });
   };
@@ -84,7 +85,7 @@ export function DiscoveryFilterPanel({
 
           {/* Counter */}
           <Text style={styles.counter}>
-            {tempSelection.size} selected · no limit
+            {tempSelection.size} / 4 selected
           </Text>
 
           {/* Category chips */}

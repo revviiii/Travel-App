@@ -8,11 +8,15 @@ import {
   useWindowDimensions,
   ViewToken,
 } from 'react-native';
+import { Image } from 'expo-image';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { AutumnColors } from '@/constants/colors';
 import { OnboardingSlide, SlideData } from '@/components/onboarding/OnboardingSlide';
 import { PaginationDots } from '@/components/onboarding/PaginationDots';
+
+const skipArrowIcon = require('@/assets/images/skip-arrow-ic.svg');
+const getStartedArrowIcon = require('@/assets/images/white-arrow-ic.svg');
 
 /**
  * Onboarding slide data with real assets and exact approved copy.
@@ -103,8 +107,7 @@ export default function OnboardingCarousel() {
             accessibilityLabel="Get Started"
           >
             <Text style={styles.getStartedText}>Get Started</Text>
-            {/* TODO: Replace with final Figma Get Started arrow SVG */}
-            <View style={styles.arrowPlaceholder} />
+            <Image source={getStartedArrowIcon} style={styles.arrowIcon} contentFit="contain" />
           </TouchableOpacity>
         ) : (
           <TouchableOpacity
@@ -114,8 +117,7 @@ export default function OnboardingCarousel() {
             style={styles.skipButton}
           >
             <Text style={styles.skipText}>Skip</Text>
-            {/* TODO: Replace with final Figma Skip chevron SVG */}
-            <View style={styles.skipChevronPlaceholder} />
+            <Image source={skipArrowIcon} style={styles.skipArrowIcon} contentFit="contain" />
           </TouchableOpacity>
         )}
       </View>
@@ -150,11 +152,9 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: AutumnColors.primary,
   },
-  skipChevronPlaceholder: {
-    width: 12,
-    height: 12,
-    borderRadius: 3,
-    backgroundColor: AutumnColors.chipBorder,
+  skipArrowIcon: {
+    width: 14,
+    height: 14,
   },
   getStartedButton: {
     flexDirection: 'row',
@@ -170,10 +170,8 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: '#FFFFFF',
   },
-  arrowPlaceholder: {
-    width: 14,
-    height: 14,
-    borderRadius: 3,
-    backgroundColor: 'rgba(255,255,255,0.4)',
+  arrowIcon: {
+    width: 16,
+    height: 16,
   },
 });

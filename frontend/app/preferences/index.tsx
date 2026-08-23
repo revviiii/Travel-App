@@ -16,7 +16,7 @@ import { PreferenceChip } from '@/components/onboarding/PreferenceChip';
 import { usePreferences } from '@/contexts/PreferenceContext';
 import { replaceMyPreferences, updateMyProfile } from '@/lib/api';
 
-const REQUIRED_ONBOARDING_PREFERENCES = 4;
+const MAX_ONBOARDING_PREFERENCES = 4;
 
 export default function PreferencesScreen() {
   const router = useRouter();
@@ -44,18 +44,16 @@ export default function PreferencesScreen() {
 
   const handleContinue = () => void saveAndContinue([...selectedPreferences]);
   const canContinue =
-    selectedPreferences.size === REQUIRED_ONBOARDING_PREFERENCES && !isSaving;
+    selectedPreferences.size >= 1
+    && selectedPreferences.size <= MAX_ONBOARDING_PREFERENCES
+    && !isSaving;
 
   const handleTogglePreference = (id: string) => {
     if (
       !selectedPreferences.has(id)
-      && selectedPreferences.size >= REQUIRED_ONBOARDING_PREFERENCES
+      && selectedPreferences.size >= MAX_ONBOARDING_PREFERENCES
     ) {
-      Alert.alert(
-        'Selection limit reached',
-        'Remove one preference before choosing another.',
-      );
-      return;
+      return; // silently block fifth selection — counter communicates the limit
     }
     togglePreference(id);
   };
@@ -76,7 +74,10 @@ export default function PreferencesScreen() {
         <Text style={styles.description}>
           {'Share your travel preferences, and we\'ll craft your perfect trip.'}
         </Text>
-        <Text style={styles.selectionHint}>Choose your travel interests to continue</Text>
+        <Text style={styles.selectionHint}>Choose up to {MAX_ONBOARDING_PREFERENCES} interests</Text>
+        <Text style={styles.counter}>
+          {selectedPreferences.size} / {MAX_ONBOARDING_PREFERENCES} selected
+        </Text>
 
         {/* Preference chips — flex-wrap flow layout */}
         <View style={styles.grid}>
@@ -173,6 +174,15 @@ const styles = StyleSheet.create({
     color: AutumnColors.body,
     textAlign: 'center',
     marginTop: 6,
+  },
+
+  /* Counter */
+  counter: {
+    fontSize: 12,
+    fontWeight: '400',
+    color: AutumnColors.body,
+    textAlign: 'right',
+    marginTop: 10,
     marginBottom: 16,
   },
 

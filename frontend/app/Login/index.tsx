@@ -383,14 +383,16 @@ const styles = StyleSheet.create({
     alignSelf: 'center',
     paddingHorizontal: 32,
     paddingTop: 25,
+    justifyContent: 'center',
   },
 
   intro: {
     alignItems: 'center',
+    marginBottom: 32,
   },
 
   loginIntro: {
-    marginTop: 121,
+    marginTop: 60,
   },
 
   title: {
@@ -422,7 +424,6 @@ const styles = StyleSheet.create({
 
   socialOptions: {
     gap: 13,
-    marginTop: 101,
   },
 
   socialButton: {
@@ -466,7 +467,7 @@ const styles = StyleSheet.create({
   divider: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginTop: 38,
+    marginTop: 24,
   },
 
   dividerLine: {
@@ -489,7 +490,7 @@ const styles = StyleSheet.create({
   loginButton: {
     width: '100%',
     height: 42,
-    marginTop: 36,
+    marginTop: 24,
     borderRadius: 14,
     alignItems: 'center',
     justifyContent: 'center',
@@ -593,7 +594,7 @@ const styles = StyleSheet.create({
      ========================= */
 
   footer: {
-    marginTop: 30,
+    marginTop: 20,
     flexDirection: 'row',
     alignItems: 'flex-end',
     justifyContent: 'center',

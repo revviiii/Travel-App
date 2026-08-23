@@ -59,6 +59,8 @@ import {
 import { decodeGooglePolyline } from '@/lib/polyline';
 import { supabase } from '@/lib/supabase';
 
+const groupIcon = require('@/assets/images/group-ic.svg');
+
 type DiscoverySection = 'preferences' | 'itinerary' | 'goals';
 
 const MANILA_CENTER = {
@@ -219,18 +221,8 @@ export default function DiscoveryScreen() {
     }, [setPreferences]),
   );
 
-  useEffect(() => {
-    const nextFilters = Array.from(selectedPreferences);
-    setActiveFilterOrder((current) => {
-      if (
-        current.length === nextFilters.length
-        && current.every((value, index) => value === nextFilters[index])
-      ) {
-        return current;
-      }
-      return nextFilters;
-    });
-  }, [selectedPreferences]);
+  // Discovery filters are initialized from profile preferences on mount (via useState initializer)
+  // but remain independent afterward. Profile preference changes do NOT reset active Discovery filters.
 
   useEffect(() => {
     void supabase.auth.getSession().then(({ data }) => {
@@ -555,9 +547,11 @@ export default function DiscoveryScreen() {
     setActiveFilterOrder((prev) => {
       if (prev.includes(id)) {
         return prev.filter((x) => x !== id);
-      } else {
+      } else if (prev.length < 4) {
         return [...prev, id];
       }
+      // At max (4) and trying to add → no-op
+      return prev;
     });
   };
 
@@ -999,6 +993,7 @@ export default function DiscoveryScreen() {
                     label={cat.label}
                     active={activeFilters.has(cat.id)}
                     onPress={() => toggleFilter(cat.id)}
+                    preferenceId={cat.id}
                   />
                 ))}
               </ScrollView>
@@ -1061,6 +1056,7 @@ export default function DiscoveryScreen() {
                     label={trip.name}
                     active={trip.id === selectedTripId}
                     onPress={() => setSelectedTripId(trip.id)}
+                    iconSource={groupIcon}
                   />
                 ))}
               </ScrollView>

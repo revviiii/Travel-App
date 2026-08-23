@@ -1,18 +1,14 @@
-import { getMyPreferences, getMyProfile } from '@/lib/api';
+import { getMyProfile } from '@/lib/api';
 
 export type PostAuthRoute = '/home' | '/preferences';
 
 /**
- * Keep every authentication entry point on the same onboarding path.
- * A user reaches the dashboard only after saving at least one preference.
+ * Determine post-authentication routing based solely on onboarding completion.
+ * An onboarded user with zero profile preferences is valid and routes to /home.
+ * Only genuinely incomplete onboarding routes to /preferences.
  */
 export async function getPostAuthRoute(): Promise<PostAuthRoute> {
-  const [profile, preferences] = await Promise.all([
-    getMyProfile(),
-    getMyPreferences(),
-  ]);
+  const profile = await getMyProfile();
 
-  return profile.onboarding_completed && preferences.length > 0
-    ? '/home'
-    : '/preferences';
+  return profile.onboarding_completed ? '/home' : '/preferences';
 }

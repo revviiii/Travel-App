@@ -1,6 +1,9 @@
 import { useState } from 'react';
 import { StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { Image } from 'expo-image';
 import { AutumnColors } from '@/constants/colors';
+
+const sendIcon = require('@/assets/images/goals-send-ic.svg');
 
 const MAX_CHARACTERS = 100;
 
@@ -56,8 +59,7 @@ export function TravelGoalInput({ onAdd }: TravelGoalInputProps) {
           accessibilityLabel="Add goal"
           style={[styles.addButton, !canSubmit && styles.addButtonDisabled]}
         >
-          {/* TODO: Replace with final Figma SVG icon */}
-          <View style={styles.addIconPlaceholder} />
+          <Image source={sendIcon} style={styles.sendIcon} contentFit="contain" tintColor="#FFFFFF" />
         </TouchableOpacity>
       </View>
       <Text style={styles.counter}>
@@ -99,11 +101,9 @@ const styles = StyleSheet.create({
   addButtonDisabled: {
     opacity: 0.4,
   },
-  addIconPlaceholder: {
-    width: 14,
-    height: 14,
-    borderRadius: 3,
-    backgroundColor: 'rgba(255,255,255,0.6)',
+  sendIcon: {
+    width: 16,
+    height: 16,
   },
   counter: {
     fontSize: 12,

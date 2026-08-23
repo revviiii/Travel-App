@@ -4,12 +4,16 @@ import { StatusBar } from 'expo-status-bar';
 import { useRef, useState } from 'react';
 import {
   Alert,
+  KeyboardAvoidingView,
+  Platform,
+  ScrollView,
   StyleSheet,
   Text,
   TextInput,
   TouchableOpacity,
   View,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { supabase } from '@/lib/supabase';
 import { signInWithSocialProvider } from '@/lib/oauth';
 
@@ -113,6 +117,18 @@ export default function SignupScreen() {
       return;
     }
 
+    // Supabase returns a user with an empty identities array when the email
+    // already exists (without revealing that fact through an error, to prevent
+    // email enumeration). Detect this case and do NOT treat it as a new signup.
+    if (data.user && (!data.user.identities || data.user.identities.length === 0)) {
+      Alert.alert(
+        'Account already exists',
+        'An account with this email already exists. Please log in instead.',
+        [{ text: 'Go to Login', onPress: () => router.replace('/Login') }],
+      );
+      return;
+    }
+
     if (!data.session) {
       Alert.alert(
         'Check your email',
@@ -122,6 +138,7 @@ export default function SignupScreen() {
       return;
     }
 
+    // Genuine new signup with session → proceed to new-user preferences
     router.replace('/preferences');
   };
 
@@ -144,7 +161,17 @@ export default function SignupScreen() {
     <View style={styles.screen}>
       <StatusBar style="dark" />
 
-      <View style={styles.content}>
+      <KeyboardAvoidingView
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        style={styles.keyboardView}
+      >
+        <ScrollView
+          contentContainerStyle={styles.scrollContent}
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
+          bounces={false}
+        >
+          <View style={styles.content}>
 
         {/* HEADER */}
         <View style={styles.intro}>
@@ -325,6 +352,8 @@ export default function SignupScreen() {
         </View>
 
       </View>
+        </ScrollView>
+      </KeyboardAvoidingView>
     </View>
   );
 }
@@ -432,13 +461,23 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFFFFF',
   },
 
+  keyboardView: {
+    flex: 1,
+  },
+
+  scrollContent: {
+    flexGrow: 1,
+  },
+
   content: {
     flex: 1,
     width: '100%',
     maxWidth: 420,
     alignSelf: 'center',
     paddingHorizontal: 31,
-    paddingTop: 58,
+    paddingTop: 40,
+    paddingBottom: 24,
+    justifyContent: 'center',
   },
 
   intro: {

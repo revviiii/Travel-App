@@ -271,7 +271,7 @@ export default function GroupDetailsScreen() {
           <View key={member.user_id} style={styles.memberCardWrapper}>
             <GroupMemberCard
               name={member.full_name || `${formatPreference(member.role)} member`}
-              preferences={member.preference_keys.map(formatPreference)}
+              preferences={member.preference_keys.map((key) => ({ id: key, label: formatPreference(key) }))}
               avatarUrl={member.avatar_url}
             />
           </View>

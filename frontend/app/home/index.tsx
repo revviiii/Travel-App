@@ -328,7 +328,9 @@ export default function HomeScreen() {
       void Promise.all([getMyProfile(), getMyPreferences(), supabase.auth.getSession()])
         .then(([profile, preferences, sessionResult]) => {
           if (!isCurrent) return;
-          if (preferences.length === 0) {
+          // Onboarding check uses only the persisted flag — not preference count.
+          // An onboarded user with 0 preferences is valid and stays on Home.
+          if (!profile.onboarding_completed) {
             router.replace('/preferences');
             return;
           }

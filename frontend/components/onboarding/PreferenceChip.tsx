@@ -5,7 +5,7 @@ import { AutumnColors } from '@/constants/colors';
 
 type PreferenceIconName = ComponentProps<typeof MaterialCommunityIcons>['name'];
 
-const PREFERENCE_ICONS: Record<string, PreferenceIconName> = {
+export const PREFERENCE_ICONS: Record<string, PreferenceIconName> = {
   outdoors: 'compass-outline',
   adventure: 'compass-outline',
   city: 'city-variant-outline',

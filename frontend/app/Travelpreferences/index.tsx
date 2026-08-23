@@ -24,6 +24,7 @@ import { getMyPreferences, replaceMyPreferences } from '@/lib/api';
 export default function TravelPreferencesScreen() {
   const insets = useSafeAreaInsets();
   const { selectedPreferences, setPreferences } = usePreferences();
+  const [originalPreferences, setOriginalPreferences] = useState<Set<string>>(new Set());
   const [draftPreferences, setDraftPreferences] = useState<Set<string>>(() => {
     const availableIds = new Set(PROFILE_TRAVEL_PREFERENCES.map((item) => item.id));
     const currentProfilePreferences = [...selectedPreferences].filter((id) => availableIds.has(id));
@@ -32,13 +33,24 @@ export default function TravelPreferencesScreen() {
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
 
+  // Determine whether the user has made actual changes (order-independent set comparison)
+  const hasChanges = (() => {
+    if (originalPreferences.size !== draftPreferences.size) return true;
+    for (const id of originalPreferences) {
+      if (!draftPreferences.has(id)) return true;
+    }
+    return false;
+  })();
+
   useEffect(() => {
     let isCurrent = true;
     getMyPreferences()
       .then((preferences) => {
         if (!isCurrent) return;
         const normalized = normalizePreferenceIds(preferences);
-        setDraftPreferences(new Set(normalized));
+        const loadedSet = new Set(normalized);
+        setOriginalPreferences(loadedSet);
+        setDraftPreferences(new Set(loadedSet));
         setPreferences(normalized);
       })
       .catch((error) => {
@@ -68,9 +80,10 @@ export default function TravelPreferencesScreen() {
       const next = new Set(current);
       if (next.has(id)) {
         next.delete(id);
-      } else {
+      } else if (next.size < 4) {
         next.add(id);
       }
+      // At max (4) and trying to add → no-op
       return next;
     });
   };
@@ -80,10 +93,13 @@ export default function TravelPreferencesScreen() {
     try {
       const saved = await replaceMyPreferences([...draftPreferences]);
       const normalized = normalizePreferenceIds(saved);
+      const savedSet = new Set(normalized);
+      setOriginalPreferences(savedSet);
+      setDraftPreferences(new Set(savedSet));
       setPreferences(normalized);
-      setDraftPreferences(new Set(normalized));
       Alert.alert('Preferences saved', 'Your travel preferences have been updated.');
     } catch (error) {
+      // On failure: do not update originalPreferences, keep draft for retry
       Alert.alert(
         'Unable to save preferences',
         error instanceof Error ? error.message : 'Please try again.',
@@ -138,9 +154,9 @@ export default function TravelPreferencesScreen() {
           <Text style={styles.description}>
             This is your current travel preferences. You can customize this by adding and removing.
           </Text>
-          <Text style={styles.selectionHint}>Choose any interests that match your travel style</Text>
+          <Text style={styles.selectionHint}>Choose up to 4 interests that match your travel style</Text>
           <Text style={styles.counter}>
-            {draftPreferences.size} selected · no limit
+            {draftPreferences.size} / 4 selected
           </Text>
 
           {isLoading ? <ActivityIndicator color={AutumnColors.primary} /> : <View style={styles.grid}>
@@ -170,9 +186,9 @@ export default function TravelPreferencesScreen() {
             accessibilityLabel="Save travel preferences"
             accessibilityRole="button"
             activeOpacity={0.85}
-            disabled={isLoading || isSaving}
+            disabled={isLoading || isSaving || !hasChanges}
             onPress={() => void handleSave()}
-            style={styles.saveButton}
+            style={[styles.saveButton, (isLoading || isSaving || !hasChanges) && styles.saveButtonDisabled]}
           >
             {isSaving ? <ActivityIndicator color="#FFFFFF" /> : <Text style={styles.saveText}>Save</Text>}
           </TouchableOpacity>
@@ -266,6 +282,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: AutumnColors.primary,
+  },
+  saveButtonDisabled: {
+    opacity: 0.45,
   },
   saveText: {
     color: '#FFFFFF',
