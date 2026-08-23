@@ -13,7 +13,6 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { supabase } from '@/lib/supabase';
 import { signInWithSocialProvider } from '@/lib/oauth';
 
